@@ -1,0 +1,106 @@
+--
+-- Test Data for rrdbot and graphs
+--
+-- Author:  Chris Browning  <ckb6@cs.waikato.ac.nz>
+-- Version:  $Id$
+--
+
+-- rrdbot Classes
+INSERT INTO rrdbot_class VALUES (DEFAULT, 'interface', 'ipAdEntIfIndex:walk', 300, 'AVERAGE', '12/hour * 2 days, 2/hour * 2 weeks, 12/day * 10 weeks, 1/day * 800 days', 0, 1, 1,'ifDescr');
+INSERT INTO rrdbot_class VALUES (DEFAULT, 'wireless', 'lsIndex', 300, 'AVERAGE', '12/hour * 2 days, 2/hour * 2 weeks, 12/day * 10 weeks, 1/day * 800 days', 1, 0, 0, '');
+INSERT INTO rrdbot_class VALUES (DEFAULT, 'solar', 'battVoltage:exist', 300, 'AVERAGE', '12/hour * 2 days, 2/hour * 2 weeks, 12/day * 10 weeks, 1/day * 800 days', 0, 0, 0, '');
+
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 1,'ifInOctets','ifInOctets','COUNTER',0,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 1,'ifInUcastPkts','ifInUcastPkts','COUNTER',0,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 1,'ifInDiscards','ifInDiscards','COUNTER',0,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 1,'ifInErrors','ifInErrors','COUNTER',0,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 1,'ifInUnknownProtos','ifInUnknownProtos','COUNTER',0,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 1,'ifOutOctets','ifOutOctets','COUNTER',0,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 1,'ifOutUcastPkts','ifOutUcastPkts','COUNTER',0,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 1,'ifOutDiscards','ifOutDiscards','COUNTER',0,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 1,'ifOutErrors','ifOutErrors','COUNTER',0,NULL);
+
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 2,'linkCurrentQuality','linkCurrentQuality','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 2,'linkCurrentSignal','linkCurrentSignalLevel','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 2,'linkCurrentNoise','linkCurrentNoiseLevel','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 2,'linkChannel','linkChannel','GAUGE',0,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 2,'linkBitRate','linkBitRate','GAUGE',0,NULL);
+
+
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 3,'battVoltage','battVoltage','GAUGE',0,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 3,'battsenseVoltage','battsenseVoltage','GAUGE',0,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 3,'arrayVoltage','arrayVoltage','GAUGE',0,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 3,'refVoltage','refVoltage','GAUGE',0,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 3,'loadCurrent','loadCurrent','GAUGE',0,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 3,'chargeCurrent','chargeCurrent','GAUGE',0,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 3,'hstemp','hstemp','GAUGE',0,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 3,'battemp','battemp','GAUGE',0,NULL);
+
+
+-- Graphs
+
+INSERT INTO graph_group VALUES (DEFAULT, 'Traffic');
+INSERT INTO graph_group VALUES (DEFAULT, 'Solar');
+INSERT INTO graph_group VALUES (DEFAULT, 'Signal to Noise Ratio');
+INSERT INTO graph_group VALUES (DEFAULT, 'Signal / Noise Levels');
+
+INSERT INTO graph_type VALUES (DEFAULT, 1, 1, 'Traffic Rate', 'interface','Bits per second');
+INSERT INTO graph_type VALUES (DEFAULT, 1, 1, 'Error Rate', 'interface','Bits per second');
+INSERT INTO graph_type VALUES (DEFAULT, 2, 3, 'Battery Voltage', 'solar','Voltage');
+INSERT INTO graph_type VALUES (DEFAULT, 2, 3, 'Array Voltage', 'solar','Voltage');
+INSERT INTO graph_type VALUES (DEFAULT, 2, 3, 'Current', 'solar','Amps');
+INSERT INTO graph_type VALUES (DEFAULT, 2, 3, 'Temperature', 'solar','Deg. Celcius');
+INSERT INTO graph_type VALUES (DEFAULT, 3, 2, 'Signal to Noise Ratio', 'wireless','SNR');
+INSERT INTO graph_type VALUES (DEFAULT, 4, 2, 'Signal / Noise', 'wireless','-dbM');
+
+INSERT INTO graph_parts VALUES (DEFAULT, 1, 1, 'DEF', 0, 'ifInOctets','val1', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 1, 1, 'DEF', 0, 'ifOutOctets','val2', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 1, 2, 'CDEF', 0, 'val1,8,*','cval1', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 1, 2, 'CDEF', 0, 'val2,8,*','cval2', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 1, 3, 'AREA', '00FF00', 'ifInOctets', 'cval1', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 1, 4, 'LINE2', '0000FF', 'ifOutOctets', 'cval2', '');
+
+INSERT INTO graph_parts VALUES (DEFAULT, 2, 1, 'DEF', 0, 'ifInErrors','val1', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 2, 1, 'DEF', 0, 'ifOutErrors','val2', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 2, 3, 'AREA', '00FF00', 'Errors In', 'val1', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 2, 4, 'LINE2', '0000FF', 'Errors out', 'val2', '');
+
+INSERT INTO graph_parts VALUES (DEFAULT, 3, 1, 'DEF', 0, 'battVoltage','val1', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 3, 1, 'DEF', 0, 'battsenseVoltage','val2', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 3, 2, 'CDEF', 0, 'val1,1000,/','cval1', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 3, 2, 'CDEF', 0, 'val2,1000,/','cval2', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 3, 3, 'AREA', '00FF00', 'Batt Voltage', 'cval1', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 3, 4, 'LINE2', '0000FF', 'Sense Voltage', 'cval2', '');
+
+INSERT INTO graph_parts VALUES (DEFAULT, 4, 1, 'DEF', 0, 'arrayVoltage','val1', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 4, 1, 'DEF', 0, 'refVoltage','val2', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 4, 2, 'CDEF', 0, 'val1,1000,/','cval1', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 4, 2, 'CDEF', 0, 'val2,1000,/','cval2', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 4, 3, 'AREA', '00FF00', 'Array Voltage', 'cval1', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 4, 4, 'LINE2', '0000FF', 'Reference Voltage', 'cval2', '');
+
+INSERT INTO graph_parts VALUES (DEFAULT, 5, 1, 'DEF', 0, 'loadCurrent','val1', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 5, 1, 'DEF', 0, 'chargeCurrent','val2', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 5, 2, 'CDEF', 0, 'val1,1000,/','cval1', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 5, 2, 'CDEF', 0, 'val2,1000,/','cval2', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 5, 3, 'AREA', '00FF00', 'Load Current', 'cval1', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 5, 4, 'LINE2', '0000FF', 'Charge Current', 'cval2', '');
+
+INSERT INTO graph_parts VALUES (DEFAULT, 6, 1, 'DEF', 0, 'hstemp','val1', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 6, 1, 'DEF', 0, 'battemp','val2', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 6, 2, 'AREA', '00FF00', 'Heatsink Temp', 'val1', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 6, 3, 'LINE2', '0000FF', 'Battery Temp', 'val2', '');
+
+INSERT INTO graph_parts VALUES (DEFAULT, 7, 1, 'DEF', 0, 'linkCurrentSignal','val1', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 7, 1, 'DEF', 0, 'linkCurrentNoise','val2', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 7, 2, 'CDEF', 0, 'val1,val2,-','snr', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 7, 3, 'LINE2', '00FF00', 'SNR', 'snr', '');
+
+INSERT INTO graph_parts VALUES (DEFAULT, 8, 1, 'DEF', 0, 'linkCurrentSignal','val1', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 8, 1, 'DEF', 0, 'linkCurrentNoise','val2', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 8, 2, 'CDEF', 0, 'val1,1000,/,-1,*','cval1', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 8, 2, 'CDEF', 0, 'val2,1000,/,-1,*','cval2', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 8, 3, 'AREA', '00FF00', 'Signal', 'cval1', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 8, 4, 'LINE2', '0000FF', 'Noise', 'cval2', '');
+
+-- vim: ft=sql

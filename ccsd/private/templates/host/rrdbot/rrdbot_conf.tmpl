@@ -1,0 +1,107 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+This template creates the rrdbot-script configuration file
+*#
+#attr $author = "Chris Browning (ckb6@cs.waikato.ac.nz)"
+#attr $version = "$Id: rrdbot_script_conf.tmpl 1163 2006-12-01 02:09:36Z ckb6 $"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "rrdbot.conf"
+#attr $serviceName = "rrdbot"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict with DHCP syntax
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+#
+# CRCnet rrdbot-script.conf
+#
+# This file was automatically generated on the date below, DO NOT EDIT
+# $Date$
+
+
+#This is where we setup the configuration
+!set %rrd = %services["rrdbot"]
+[config]
+    server = %server_name:%port
+    graphport = %rrd.graphport
+!for %classname in %rrd.classes
+!set %clas = %rrd.classes[%classname]
+[%clas["class_name"] = %clas["poll"]]
+    !if %clas["ipfromoid"]:
+        ipfromoid = %clas["ipfromoid"]
+    !end if
+    !if %clas["skip_software_loop"]:
+        skip_software_loop = %clas["skip_software_loop"]
+    !end if
+    !if %clas["key"]:
+        key = %clas["key"]
+    !end if
+    !if %clas["interval"]:
+        interval = %clas["interval"]
+    !end if
+    !if %clas["cf"]:
+        cf = %clas["cf"]
+    !end if
+    !if %clas["archive"]:
+        archive = %clas["archive"]
+    !end if
+    !if %clas["upper_bound"] != '':
+        upper_bound = %clas["upper_bound"]
+    !end if
+    !if %clas["lower_bound"] != '':
+        lower_bound = %clas["lower_bound"]
+    !end if
+    
+    !for %var in %clas["variables"]
+        %var["name"]:poll = %var["poll"]
+        %var["name"]:type = %var["type"]
+        !if %var["type"] == "GAUGE" and %var["min"] != '':
+        %var["name"]:min = %var["min"]
+        !end if
+        !if %var["type"] == "GAUGE" and %var["max"] != '':
+        %var["name"]:max = %var["max"]
+        !end if
+        
+    !end for
+    
+    
+    !set %subclasses = %clas["subs"]
+    !for %sub in %subclasses
+    {%sub["class_name"] = %sub["poll"]}
+        !if %sub["interval"]:
+            interval = %sub["interval"]
+        !end if
+        !if %sub["cf"]:
+            cf = %sub["cf"]
+        !end if
+        !if %sub["archive"]:
+            archive = %sub["archive"]
+        !end if
+        !if %sub["upper_bound"] != '':
+            upper_bound = %sub["upper_bound"]
+        !end if
+        !if %sub["lower_bound"] != '':
+            lower_bound = %sub["lower_bound"]
+        !end if
+
+        !for %var in %sub["variables"]
+            %var["name"]:poll = %var["poll"]
+            %var["name"]:type = %var["type"]
+            !if %var["type"] == "GAUGE" and %var["min"] != '':
+            %var["name"]:min = %var["min"]
+            !end if
+            !if %var["type"] == "GAUGE" and %var["max"] != '':
+            %var["name"]:max = %var["max"]
+            !end if
+            
+        !end for
+    !end for
+
+!end for

@@ -1,0 +1,17 @@
+-- 
+-- PostgreSQL schema for HostAPD Service
+--
+-- The HostAPD module depends on the RADIUS module.
+--
+-- Author:   Matt Brown  <matt@crc.net.nz>
+-- Version:  $Id$
+--
+
+-- An interface must be present in this table to be enabled for hostap
+CREATE TABLE hostapd_interface (
+    interface_id integer     NOT NULL REFERENCES interface (interface_id) 
+                                ON DELETE CASCADE,
+    auth integer NOT NULL DEFAULT 1
+);
+
+-- vim: ft=sql

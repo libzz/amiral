@@ -1,0 +1,32 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+This template creates the DHCP Defaults File
+*#
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "dhcpd_default"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict with DHCP syntax
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+#
+# CRCnet CPE DHCP Defaults File - Specify interfaces to listen on
+#
+# This file was automatically generated on the date below, DO NOT EDIT
+# $Date$
+
+#
+# This is a POSIX shell fragment
+#
+
+# CPEs only every serve DHCP on their internal interface
+INTERFACES="int"

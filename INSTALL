@@ -1,0 +1,108 @@
+AMIRAL v0.1dev
+
+
+##############################################################################
+
+You need the following debian package installel
+
+apt-get install python-twisted python-pyopenssl python-pgsql python-subversion python-cheetah postgresql-plpython-8.4
+##############################################################################
+
+# Amiral Env
+scp amiral-project.tgz /tmp/amiral-project.tgz
+adduser --quiet --system --group --home /home/amiral --shell /bin/bash amiral
+su - amiral
+cd /home/amiral/
+mkdir -p /home/amiral/build/etc
+tar -zxvf /tmp/amiral-project.tgz -C .
+cp /home/amiral/ccsd/debian/ccsd/ccsd.conf /home/amiral/build/etc/
+sed -i -e 's#=/#=/home/amiral/build/#g' -e 's#file:///#file:///home/amiral/build/#g' /home/amiral/build/etc/ccsd.conf
+cd ccsd
+sed -i -e 's/root/amiral/g' Makefile
+DESTDIR=/home/amiral/build/ make install-server SHELL=/bin/bash
+
+# Database
+apt-get install postgresql-8.4
+pg_createcluster -u amiral -g amiral -d /home/amiral/postgresql --start 8.4 amiral
+# /etc/postgresql/8.4/amiral/pg_hba.conf
+# local   all         amiral                            ident
+# host    ccsd        ccsd      127.0.0.1/32          md5
+# /etc/postgresql/8.4/amiral/postgresql.conf
+# port = 5433
+# unix_socket_directory = '/tmp'
+#  pg_ctlcluster 8.4 amiral restart
+amiral@svn01:~$ createuser -p5433 -h /tmp ccsd
+amiral@svn01:~$ createdb -p5433 -h /tmp -O ccsd ccsd
+
+psql -p5433 -h /tmp ccsd < ./build/usr/share/ccsd/dbschema/ccs.schema
+
+# Creation database et user ccsd
+# ccsd/dbschema/ccs.schema ccsd/dbschema/ccs.adminschema
+
+# CCSD Env
+mkdir -p /home/amiral/build/var/cache/ccsd /home/amiral/build/var/run/ccsd /home/amiral/build/var/lib/ccsd
+adduser --quiet --system --group --no-create-home --home /home/amiral/build/var/cache/ccsd ccsd
+chown ccsd: /home/amiral/build/var/lib/ccsd /home/amiral/build/var/run/ccsd /home/amiral/build/var/cache/ccsd
+chmod 755 /home/amiral/build/var/lib/ccsd /home/amiral/build/var/run/ccsd
+#/usr/bin/openssl req -new -x509 -nodes -keyout /home/amiral/build/etc/ccsd/ccsd-ca-key.pem -out /home/amiral/build/etc/ccsd/ccsd-ca-cert.pem &>/dev/null
+#/usr/bin/openssl req -new -nodes -out /home/amiral/build/etc/ccsd/ccsd-server-req.pem -keyout /home/amiral/build/etc/ccsd/ccsd-server-key.pem &>/dev/null
+#/usr/bin/openssl x509 -req -in /home/amiral/build/etc/ccsd/ccsd-server-req.pem -out /home/amiral/build/etc/ccsd/ccsd-server-cert.pem -signkey /home/amiral/build/etc/ccsd/ccsd-server-key.pem -CA /home/amiral/build/etc/ccsd/ccsd-ca-cert.pem -CAkey /home/amiral/build/etc/ccsd/ccsd-ca-key.pem -CAcreateserial -days 365 &>/dev/null
+chown ccsd:ccsd /home/amiral/build/etc/ccsd/ccsd-*.pem
+chmod 644 /home/amiral/build/etc/ccsd/ccsd-*.pem
+chmod 600 /home/amiral/build/etc/ccsd/ccsd-*key.pem
+
+svnroot=`grep "^config_svnroot" /home/amiral/build/etc/ccsd/ccsd.conf | cut -f2 -d'='`
+tmpdir=`mktemp -du`
+datestr=`date`
+svnrootdir=`echo "$svnroot" | sed 's@^.*://@@'`
+# Create the SVN repository if needed
+if [ ! -d "$svnrootdir" ]; then
+	/usr/bin/svnadmin create --fs-type fsfs "$svnrootdir"
+	cat > $svnrootdir/hooks/pre-revprop-change <<EOF
+#!/bin/bash
+
+# PRE-REVPROP-CHANGE HOOK
+
+# Created by the CRCnet Configuration System postinst on
+# %s
+
+# Allow all changes at this time
+exit 0
+EOF
+fi
+/usr/bin/svn co "$svnroot" "$tmpdir" &>/dev/null
+cd $tmpdir
+if [ ! -d "inputs" ]; then
+	/usr/bin/svn mkdir inputs
+	cat > inputs/README <<EOF
+CRCnet Configuration System - CFengine Configuration Directory
+
+This directory is a checkout of the Configuration System Repository
+from $svnroot/inputs
+
+Created on $datestr by the Debian package postinst script. 
+
+DO NOT REMOVE OR MODIFY THIS DIRECTORY, to update the files run 
+
+$ svn update
+
+EOF
+/usr/bin/svn add inputs/README
+fi
+if [ ! -d "ppkeys" ]; then
+/usr/bin/svn mkdir ppkeys
+cat > ppkeys/README <<EOF
+
+mkdir -p /home/amiral/build/var/lib/cfengine2/inputs
+svn co "$svnroot/inputs" /home/amiral/build/var/lib/cfengine2/inputs
+svn co "$svnroot/ppkeys" /home/amiral/build/var/lib/cfengine2/ppkeys
+chmod 2755 /home/amiral/build/var/lib/cfengine2/inputs
+chmod 0700 /home/amiral/build/var/lib/cfengine2/ppkeys
+
+# trac
+apt-get install python3-setuptools python-psycopg2 python-genshi
+svn co http://svn.edgewall.org/repos/trac/trunk trac
+python ./setup.py install
+adduser --no-create-home trac
+trac-admin /home/amiral/trac/project initenv
+

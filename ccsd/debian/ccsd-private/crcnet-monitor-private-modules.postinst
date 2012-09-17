@@ -1,0 +1,17 @@
+#!/bin/sh
+set -e
+
+if [ "$1" != "configure" ]; then
+    exit 0
+fi
+
+# Restart the daemon so that the new modules are picked up.
+if [ -x "/etc/init.d/crcnet-monitor" ]; then
+        if [ -x "`which invoke-rc.d 2>/dev/null`" ]; then
+                invoke-rc.d crcnet-monitor restart || exit 0
+        else
+                /etc/init.d/crcnet-monitor restart || exit 0
+        fi
+fi
+
+exit 0

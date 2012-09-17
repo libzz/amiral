@@ -1,0 +1,35 @@
+nav.py
+Navigation in Python
+
+(c) 2005-2006 Scott Raynel <scottraynel@gmail.com>
+
+The University of Waikato WAND Network Research Group
+
+nav is a pure-python implementation of the Great Circle Distance algorithm and
+the spherical geometry required to calculate bearings between two points on a
+sphere. nav provides the GeoPoint object to encapsulate latitude and longitude
+information in either DMS or decimal formats.
+
+Usage:
+
+import nav
+
+p1 = nav.GeoPoint()
+p1.set_latitude_dec(-37.123)
+p1.set_longitude_dec(125.654)
+
+p2 = nav.GeoPoint()
+p2.set_latitude(('S',36,10,23))
+p2.set_longitude(('E',124,12,14))
+
+print p1.get_distance_to(p2)
+print p2.get_bearing_to(p2)
+
+Installation:
+
+nav is pure-python, so to install, just issue:
+   python setup.py install
+
+More Documentation:
+
+The source code is heavily documented, so look there.

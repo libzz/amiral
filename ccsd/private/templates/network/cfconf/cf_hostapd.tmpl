@@ -1,0 +1,85 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+This template sets up the hostap configuration on each host
+*#
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "cf.hostapd"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict with CFengine
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+################################################################
+#
+# cf.hostapd -- for %domain
+# $Date$
+#
+# This file contains configuration for HostAPd
+#
+# WARNING: Do not modify this file since it is automatically
+#          generated
+#
+################################################################
+
+###########
+#
+# BEGIN cf.hostapd
+#
+###########
+
+control:
+
+    any::
+
+        # Classes that may become defined as we proceed
+        AddInstallable = ( restart_hostapd )
+
+    restart_hostapd::
+        autodefine = ( /etc/hostapd/hostapd-*.conf )
+        autodefine = ( /etc/ccsd/cacert.pem )
+
+packages:
+
+    any::
+
+        # Check some crucial packages are installed
+        hostapd pkgmgr=dpkg action=install ifelapsed=120
+        crcnet-ap pkgmgr=dpkg action=install ifelapsed=120
+
+copy:
+
+    any::
+
+    # Hostapd configuration
+    $(host_config)/hostapd/ dest=/etc/hostapd/ mode=0640
+        server=$(policyhost) type=sum owner=root group=root recurse=1
+    $(host_config)/hostapd_default dest=/etc/default/hostapd mode=0640
+        server=$(policyhost) type=sum owner=root group=root
+
+    # Plan list
+    $(master_cfinput)/services/ap_plans dest=/etc/ccsd/plans mode=0640
+        server=$(policyhost) type=sum owner=root group=root
+
+shellcommands:
+
+    any::
+
+    # To restart hostapd we bring AP interfaces down then back up
+    restart_hostapd::
+        "/sbin/ifdown --allow=hostapd -a"
+        "/sbin/ifup --allow=hostapd -a"
+
+###########
+#
+# END cf.hostapd
+#
+###########

@@ -1,0 +1,55 @@
+-- 
+-- PostgreSQL schema for DHCP Service
+--
+-- Author:   Matt Brown  <matt@crc.net.nz>
+-- Version:  $Id: ccs.schema 255 2005-10-17 22:52:45Z mglb1 $
+--
+
+-- One entry in this table for each interface on a host that should run
+-- a DHCP server
+CREATE TABLE dhcp_interface (
+ host_id                integer     NOT NULL REFERENCES 
+    host (host_id) ON DELETE CASCADE,
+ interface_id           integer     NOT NULL REFERENCES 
+    interface (interface_id) ON DELETE CASCADE,
+ pool_min               cidr        NOT NULL,
+ pool_max               cidr        NOT NULL,
+ router_ip              cidr,
+ PRIMARY KEY (host_id, interface_id)
+);
+CREATE TABLE dhcp_interface_history (
+ host_id                integer     NOT NULL,
+ interface_id           integer     NOT NULL,
+ pool_min               cidr,
+ pool_max               cidr,
+ router_ip              cidr,
+ changeset              integer     NOT NULL REFERENCES
+    changeset (changeset_id),
+ PRIMARY KEY(host_id, interface_id, changeset)
+);
+CREATE TRIGGER dhcp_interface_history_t BEFORE INSERT OR UPDATE OR
+    DELETE ON dhcp_interface FOR EACH ROW EXECUTE PROCEDURE 
+    do_table_history();
+
+-- One entry in this table for each static IP allocated via DHCP
+CREATE TABLE dhcp_statics (
+ host_id                integer     NOT NULL REFERENCES 
+    host (host_id) ON DELETE CASCADE,
+ interface_id           integer     NOT NULL REFERENCES
+    interface (interface_id) ON DELETE CASCADE,
+ mac                    macaddr     NOT NULL,
+ ip_address             cidr        NOT NULL,
+ PRIMARY KEY (host_id, interface_id)
+);
+CREATE TABLE dhcp_statics_history (
+ host_id                integer     NOT NULL,
+ interface_id           integer,
+ mac                    macaddr,
+ ip_address             cidr, 
+ changeset              integer     NOT NULL REFERENCES
+    changeset (changeset_id),
+ PRIMARY KEY (host_id, interface_id, changeset)
+);
+CREATE TRIGGER dhcp_statics_history_t BEFORE INSERT OR UPDATE OR
+    DELETE ON dhcp_statics FOR EACH ROW EXECUTE PROCEDURE 
+    do_table_history();

@@ -1,0 +1,7 @@
+#
+# This ruleset creates a chain called 'accounting' that can be used by other
+# external applications to implement IP traffic accounting functionality.
+#
+# $Id$
+
+. support/ruleset.functions

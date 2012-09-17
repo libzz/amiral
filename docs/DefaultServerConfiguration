@@ -1,0 +1,89 @@
+Like every good daemon the Configuration System lets you tell it what to do. You'll need to install a configuration file somewhere (/etc/ccsd/ccsd.conf is a good choice).
+
+The following is an annotated example
+
+# Example Configuration for the CRCnet Configuration Server Daemon
+
+##################################################################################
+# This section specifies general resource locations for the entire server
+[ccsd]
+# Location of the pidfile
+pidfile=/var/run/ccsd/ccsd.pid
+
+# Port to listen for requests on
+#port = 5565
+
+# Directory to read service modules from
+service_lib_dir=/usr/share/ccsd/services
+# Directory to read data for services from (eg. dbschemas etc)
+service_data_dir=/usr/share/ccsd/dbschema
+
+# Location of the SSL certificate for the server
+server_key=/etc/ccsd/ccsd-server-key.pem
+server_cert=/etc/ccsd/ccsd-server-cert.pem
+
+# Location of the SSL Certificate Authority used to sign the server cert
+# and also used to verify incoming certificates
+cacert=/etc/ccsd/cacerts.pem
+
+# Uncomment to enable profiling of all incoming requests
+#profile = 1
+#profile_dir = /tmp/ccsd/profiles/
+
+# Uncomment to change the location of the traceback log that records details of crashes
+#traceback_log = /tmp/ccsd_tbs.log
+
+# Uncomment to change the location of the request log
+#request_log = /var/log/ccsd.log
+
+##################################################################################
+# This section controls the behaviour of user sessions
+[session]
+
+# Close a session after this many minutes of inactivity
+#timeout = 30
+
+# How many minutes are login detail cookies stored for
+#cookie_timeout = 43200
+
+##################################################################################
+# Details about the network managed by this configuration system
+[network]
+admin_email = root@localdomain
+site_name = Default CRCnet Configuration System Location
+site_address = https://admin.localdomain/
+smtp_server = mail.localdomain
+server_name = admin.localdomain
+domain = localdomain
+
+##################################################################################
+# Details about how to access the database
+[database]
+# Host the database server resides on, comment out to use local socket
+host=localhost
+# The name of the database, required.
+database=ccsd
+# The user and password to connect to the database with, comment out to use ident auth
+user=ccsd
+password=ccspass
+
+##################################################################################
+# CFengine integration
+[cfengine]
+
+# The directory to read configuration templates from 
+template_dir=/usr/share/ccsd/templates
+
+# Where to store generated template modules
+template_module_dir=/var/lib/ccsd
+
+# The location of a subversion repository to store generated configurations
+# This will be created when the program is first run if it does not exist
+config_svnroot=file:///var/lib/svn/ccs-configs
+
+# The base directory where the CFengine configuration is stored
+cfbase_dir=/var/lib/cfengine2
+
+# Uncomment to automatically update the CFengine configuration in cfbase_dir when a 
+# new configuration revision is checked in to the configuration repository
+#autoupdate=1

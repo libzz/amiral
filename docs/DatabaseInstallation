@@ -1,0 +1,11 @@
+The CRCnet Configuration System requires a postgres database.
+
+    As the postgres administrative user create a database user and database
+        createuser -P -A ccsd
+        createdb -O ccsd ccsd 
+    If you are not using password authentication remove the -P from the first command above
+    While you are still the postgres administrative user create the procedural languages in the database
+        psql ccsd < /usr/share/ccsd/dbschema/ccs.adminschema 
+    Insert the base database schema
+        psql -U ccsd ccsd < /usr/share/ccsd/dbschema/ccs.schema 
+

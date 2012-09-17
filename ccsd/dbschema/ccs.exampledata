@@ -1,0 +1,169 @@
+-- 
+-- PostgreSQL schema for CRCnet configuration system
+--
+-- Example test Data
+--
+-- Author:   Matt Brown  <matt@crc.net.nz>
+-- Version:  $Id$
+--
+-- This file is a part of crcnetd, licensed under the GPLv2
+
+BEGIN;
+SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+INSERT INTO changeset VALUES (DEFAULT, NOW(), 'admin', 'Some basic testing data',
+    NULL, 't');
+
+INSERT INTO kernel VALUES (1, '2.4.28', '-ipmp-gws', 1, '2004-12-13');
+INSERT INTO kernel VALUES (2, '2.4.28', '-ipmp-elan', 1, '2004-12-13');
+
+INSERT INTO link_class VALUES (DEFAULT, 'Routing Networks', '10.1.0.0/17', 24);
+INSERT INTO link_class VALUES (DEFAULT, 'Internal Networks', '10.128.0.0/17', 24);
+
+INSERT INTO contact VALUES (DEFAULT, 'Brown', 'Matt', '+64 275 611 544', 
+    'matt@crc.net.nz', 'matt', nextval('uid_seq'), '', 
+    '$1$4jDDUiqO$zwT5Tb5sDrIQpD3g705P4.', '', '', 1, 'normal', NOW());
+INSERT INTO contact VALUES (DEFAULT, 'Curtis', 'Jamie', '+64 21 392 102',
+    'jamie@wand.net.nz', 'jpc2', nextval('uid_seq'), '',
+    '$1$4jDDUiqO$zwT5Tb5sDrIQpD3g705P4.', '', '', 1, 'normal', NOW());
+INSERT INTO group_membership (parent_group_id, contact_id) VALUES (1, 1);
+INSERT INTO group_membership (parent_group_id, contact_id) VALUES (1, 2);
+
+INSERT INTO module VALUES (DEFAULT, 'orinoco_cs', 'f', 't', 'f', 'f');
+INSERT INTO module VALUES (DEFAULT, 'hostap', 't', 't', 'f', 'f');
+INSERT INTO module VALUES (DEFAULT, 'hostap_cs', 't', 't', 'f', 'f');
+INSERT INTO module VALUES (DEFAULT, 'madwifi', 't', 't', 't', 't');
+
+INSERT INTO site VALUES (DEFAULT, 0, 0, 0, 'Stock (RSC)', 1, 1, '');
+INSERT INTO site VALUES (DEFAULT, 0, 0, 0, 'Stock (G Block)', 1, 1, '');
+INSERT INTO site VALUES (DEFAULT, 0, 0, 0, 'Assigned Assets', 1, 1, '');
+INSERT INTO site VALUES (DEFAULT, 0, 0, 0, 'Murray Pearson''s House', 1, 1, '');
+INSERT INTO asset_stock_location VALUES (DEFAULT, 1, 't');
+INSERT INTO asset_stock_location VALUES (DEFAULT, 2, 'f');
+
+INSERT INTO asset_type VALUES (DEFAULT, 'Soekris net4521');
+INSERT INTO asset_type VALUES (DEFAULT, 'Soekris net4511');
+INSERT INTO asset_type VALUES (DEFAULT, 'Soekris net4526');
+INSERT INTO asset_type VALUES (DEFAULT, 'Hermes 802.11b Card');
+INSERT INTO asset_type VALUES (DEFAULT, 'Prism2 802.11b miniPCI Card');
+INSERT INTO asset_type VALUES (DEFAULT, 'Prism2 802.11b PCMCIA Card');
+INSERT INTO asset_type VALUES (DEFAULT, 'Athereos 802.11abg miniPCI Card');
+INSERT INTO asset_type VALUES (DEFAULT, 'CPE Device');
+INSERT INTO asset_type_map VALUES ('host', 1);
+INSERT INTO asset_type_map VALUES ('host', 2);
+INSERT INTO asset_type_map VALUES ('host', 3);
+INSERT INTO asset_type_map VALUES ('interface', 4);
+INSERT INTO asset_type_map VALUES ('interface', 5);
+INSERT INTO asset_type_map VALUES ('interface', 6);
+INSERT INTO asset_type_map VALUES ('interface', 7);
+INSERT INTO asset_type_map VALUES ('host', 8);
+INSERT INTO module_map VALUES (DEFAULT, 1, 4, 't');
+INSERT INTO module_map VALUES (DEFAULT, 2, 5, 't');
+INSERT INTO module_map VALUES (DEFAULT, 3, 4, 't');
+INSERT INTO module_map VALUES (DEFAULT, 3, 6, 't');
+INSERT INTO module_map VALUES (DEFAULT, 4, 7, 't');
+
+INSERT INTO subasset_type VALUES (DEFAULT, 'Ethernet Interface');
+INSERT INTO subasset_type VALUES (DEFAULT, 'Wireless Interface');
+INSERT INTO subasset_type VALUES (DEFAULT, 'Wireless Interface (VAP Capable)');
+INSERT INTO subasset_type VALUES (DEFAULT, 'Motherboard');
+INSERT INTO subasset_type_map VALUES ('interface', 1);
+INSERT INTO subasset_type_map VALUES ('interface', 2);
+INSERT INTO subasset_type_map VALUES ('wireless_interface', 2);
+INSERT INTO subasset_type_map VALUES ('interface', 3);
+INSERT INTO subasset_type_map VALUES ('wireless_interface', 3);
+INSERT INTO subasset_type_map VALUES ('vap', 3);
+
+INSERT INTO asset_type_subasset VALUES (DEFAULT, 1, 1, 'eth0', true);
+INSERT INTO asset_type_subasset VALUES (DEFAULT, 1, 1, 'eth1', true);
+INSERT INTO asset_type_subasset VALUES (DEFAULT, 1, 4, 'Soekris net4521', true);
+
+INSERT INTO asset_type_subasset VALUES (DEFAULT, 2, 1, 'eth0', true);
+INSERT INTO asset_type_subasset VALUES (DEFAULT, 2, 1, 'eth1', true);
+INSERT INTO asset_type_subasset VALUES (DEFAULT, 2, 4, 'Soekris net4511', true);
+
+INSERT INTO asset_type_subasset VALUES (DEFAULT, 3, 1, 'eth0', true);
+INSERT INTO asset_type_subasset VALUES (DEFAULT, 3, 4, 'Soekris net4526', true);
+
+INSERT INTO asset_type_subasset VALUES (DEFAULT, 4, 2, 'wireless', true);
+INSERT INTO asset_type_subasset VALUES (DEFAULT, 5, 2, 'wireless', true);
+INSERT INTO asset_type_subasset VALUES (DEFAULT, 6, 2, 'wireless', true);
+INSERT INTO asset_type_subasset VALUES (DEFAULT, 7, 3, 'wireless', true);
+
+INSERT INTO asset_type_subasset VALUES (DEFAULT, 8, 1, 'eth0', true);
+INSERT INTO asset_type_subasset VALUES (DEFAULT, 8, 2, 'wireless', true);
+INSERT INTO asset_type_subasset VALUES (DEFAULT, 8, 4, 'Motherboard', true);
+
+INSERT INTO asset_property VALUES (DEFAULT, 'MAC Address');
+INSERT INTO asset_property VALUES (DEFAULT, 'Compact Flash Card (MB)');
+INSERT INTO asset_property VALUES (DEFAULT, 'RAM (MB)');
+INSERT INTO asset_property VALUES (DEFAULT, 'Hard Drive (MB)');
+
+INSERT INTO subasset_property VALUES (DEFAULT, 1, 1, 't', NULL);
+INSERT INTO subasset_property VALUES (DEFAULT, 2, 1, 't', NULL);
+INSERT INTO subasset_property VALUES (DEFAULT, 3, 2, 't', '64');
+INSERT INTO subasset_property VALUES (DEFAULT, 3, 3, 't', '64');
+
+INSERT INTO asset VALUES (DEFAULT, 1, '20056', 'Soekris net4521', '2005-08-04',
+    DEFAULT, 250, 'Soekris Technologies', NULL, DEFAULT, NULL);
+INSERT INTO subasset VALUES (DEFAULT, 1, 1, DEFAULT);
+INSERT INTO subasset VALUES (DEFAULT, 1, 2, DEFAULT);
+INSERT INTO subasset VALUES (DEFAULT, 1, 3, DEFAULT);
+INSERT INTO asset_data VALUES (DEFAULT, 1, 1, '00:0D:D4:34:56:12');
+INSERT INTO asset_data VALUES (DEFAULT, 2, 1, '00:0D:D4:34:56:13');
+INSERT INTO asset_data VALUES (DEFAULT, 3, 3, 64);
+INSERT INTO asset_data VALUES (DEFAULT, 3, 2, 64);
+INSERT INTO asset_location VALUES (DEFAULT, 1, 1, NULL, DEFAULT);
+
+INSERT INTO asset VALUES (DEFAULT, 2, '20057', 'Soekris net4511', '2005-08-04',
+    DEFAULT, 250, 'Soekris Technologies', NULL, DEFAULT, NULL);
+INSERT INTO subasset VALUES (DEFAULT, 2, 4, DEFAULT);
+INSERT INTO subasset VALUES (DEFAULT, 2, 5, DEFAULT);
+INSERT INTO subasset VALUES (DEFAULT, 2, 6, DEFAULT);
+INSERT INTO asset_data VALUES (DEFAULT, 4, 1, '00:0D:D4:34:56:14');
+INSERT INTO asset_data VALUES (DEFAULT, 5, 1, '00:0D:D4:34:56:15');
+INSERT INTO asset_data VALUES (DEFAULT, 6, 3, 64);
+INSERT INTO asset_data VALUES (DEFAULT, 6, 2, 64);
+INSERT INTO asset_location VALUES (DEFAULT, 2, 1, NULL, DEFAULT);
+
+INSERT INTO asset VALUES (DEFAULT, 3, '20058', 'Soekris net4526', '2005-08-04',
+    DEFAULT, 250, 'Soekris Technologies', NULL, DEFAULT, NULL);
+INSERT INTO subasset VALUES (DEFAULT, 3, 7, DEFAULT);
+INSERT INTO subasset VALUES (DEFAULT, 3, 8, DEFAULT);
+INSERT INTO asset_data VALUES (DEFAULT, 7, 1, '00:0D:D4:34:56:16');
+INSERT INTO asset_data VALUES (DEFAULT, 8, 3, 64);
+INSERT INTO asset_data VALUES (DEFAULT, 8, 2, 64);
+INSERT INTO asset_location VALUES (DEFAULT, 3, 1, NULL, DEFAULT);
+
+INSERT INTO asset VALUES (DEFAULT, 4, '02aasdf', 'Prism2 miniPCI', '2005-08-04',
+    DEFAULT, 70, 'netgate', NULL, DEFAULT, NULL);
+INSERT INTO subasset VALUES (DEFAULT, 4, 9, DEFAULT);
+INSERT INTO asset_data VALUES (DEFAULT, 9, 2, '00:02:56:46:34');
+INSERT INTO asset_location VALUES (DEFAULT, 4, 1, NULL, DEFAULT);
+
+INSERT INTO asset VALUES (DEFAULT, 5, '03adff', 'Orinoco PCMCIA', '2005-08-04',
+    DEFAULT, 70, 'LAN1', NULL, DEFAULT, NULL);
+INSERT INTO subasset VALUES (DEFAULT, 5, 10, DEFAULT);
+INSERT INTO asset_data VALUES (DEFAULT, 10, 2, '00:02:2D:51:A1:B2');
+INSERT INTO asset_location VALUES (DEFAULT, 5, 1, NULL, DEFAULT);
+
+INSERT INTO asset VALUES (DEFAULT, 6, '04adff', 'Wipro Atheros miniPCI',
+    '2005-08-04', DEFAULT, 70, 'Netgate', NULL, DEFAULT, NULL);
+INSERT INTO subasset VALUES (DEFAULT, 6, 11, DEFAULT);
+INSERT INTO asset_data VALUES (DEFAULT, 11, 2, '00:04:56:12:34');
+INSERT INTO asset_location VALUES (DEFAULT, 6, 1, NULL, DEFAULT);
+
+INSERT INTO asset VALUES (DEFAULT, 7, '2asdff', 'Prism2 PCMCIA',
+    '2005-08-04', DEFAULT, 70, 'Netgate', NULL, DEFAULT, NULL);
+INSERT INTO subasset VALUES (DEFAULT, 7, 12, DEFAULT);
+INSERT INTO asset_data VALUES (DEFAULT, 12, 2, '00:02:56:76:54');
+INSERT INTO asset_location VALUES (DEFAULT, 7, 1, NULL, DEFAULT);
+
+INSERT INTO link VALUES (DEFAULT, 'HEN Backhaul', 'Ad-Hoc', 'b', 1, 
+    'CRCnet-mph-hen-11', 11, NULL, '10.1.224.0/24', 'f');
+INSERT INTO link VALUES (DEFAULT, 'MFR Backhaul', 'Ad-Hoc', 'b', 1,
+    'CRCnet-mph-hen-1', 1, NULL, '10.1.236.0/24', 'f');
+
+INSERT INTO host VALUES (DEFAULT, 'matt', 1, 1, NULL, NULL, 'f', 'f');
+
+UPDATE changeset SET pending='f' WHERE pending='t' AND username='admin';
+COMMIT;

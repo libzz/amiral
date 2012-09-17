@@ -1,0 +1,12 @@
+-- 
+-- PostgreSQL schema for AMPlet Service
+--
+-- Author:   Matt Brown  <matt@crc.net.nz>
+-- Version:  $Id$
+--
+
+--DROP SEQUENCE rurallink_soekris_serial;
+--DROP SEQUENCE rurallink_wrap_serial;
+
+CREATE SEQUENCE rurallink_soekris_serial MINVALUE 1 MAXVALUE 8191;
+CREATE SEQUENCE rurallink_wrap_serial MINVALUE 8192 MAXVALUE 16384;

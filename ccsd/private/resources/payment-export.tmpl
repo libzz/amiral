@@ -1,0 +1,62 @@
+## Example Payment Export Template
+##
+## This template generates records in the ASB Bank Direct Debit Input Format
+##
+## Each line (record) must be 160 characters in length and end with a CRLF
+## It is important to use ${crlf}#slurp to end each line of output to achieve this
+##
+## Configurable Values set in the template
+#set $bank="00"
+#set $branch="0000"
+#set $customerno="0000000"
+#set $organisation="Example Ltd."
+## Prepare values for the Header Line that are provided by ccsd
+#set $batch=$exportno.__str__.zfill(2)
+#set $duedate=$time.strftime("%Y%m%d     ", time.localtime($payment_date))
+#set $clientsname=$organisation.rjust(20)
+#set $filler=" "*109
+## Output the actual header line
+20${bank}${branch}${customerno}${batch}${duedate}${clientsname}${filler}${crlf}#slurp
+## Now loop over each invoice and generate a payment record for it
+#set $hashsum=0
+#set $amountsum=0
+#for $invoice in $invoices
+## Prepare invoice specific data
+#set $cname="%s %s" % ($invoice.contact.givenname, $invoice.contact.surname)
+#set $tpname=$cname[:20].rjust(20)
+#set $amount=str(int(float($invoice.total)*100)).zfill(10)
+#set $f1="0".zfill(12)
+#set $plandesc=$invoice.contact.plan_desc.split()[0]
+## Keep track of some sums for the trailer record
+#set $hashsum+=int($invoice.contact.branch)+int($invoice.contact.bankaccountno)
+#set $amountsum+=int(float($invoice.total)*100)
+## Output the invoice record, one field per line, slurping to prevent newlines
+13#slurp                                            ## record type
+${invoice.contact.bank}#slurp
+${invoice.contact.branch}#slurp
+${invoice.contact.bankaccountno}#slurp
+${invoice.contact.banksuffix}#slurp
+000#slurp                                           ## transaction code
+$amount#slurp
+$tpname#slurp
+$f1#slurp                                           ## Numeric Reference
+## 'This Party' details - the client according to the docs
+${invoice.invoice_id.__str__[:12].rjust(12)}#slurp  ## Code
+${invoice.contact.username[:12].rjust(12)}#slurp    ## Reference
+${plandesc[:12].rjust(12)}#slurp                   ## Particulars
+ #slurp                                             ## filler (1 space)
+$clientsname#slurp
+## Other party details - Us according to the docs
+${invoice.invoice_id.__str__[:12].rjust(12)}#slurp  ## Code
+${invoice.contact.username[:12].rjust(12)}#slurp    ## Reference
+${plandesc[:12].rjust(12)}#slurp                    ## Particulars
+    #slurp                                          ## filler (4 spaces)
+$crlf#slurp
+#end for
+## Trailer Record
+#set $f1=" "*6
+#set $f2=" "*129
+#set $hash=$hashsum.__str__().zfill(11)
+#set $total=$amountsum.__str__().zfill(10)
+1399${hash}${f1}${total}${f2}${crlf}#slurp
+## END OF FILE, no blank lines

@@ -1,0 +1,34 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+Default Network Configuration for CRCnet Biscuit PCs
+*#
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "network_options"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+#############################################################
+#
+# /etc/network/options -- for %domain 
+# $Date$
+#
+# This file contains the default network definitions for
+# CRCnet Biscuit PCs
+#
+# WARNING: Do not modify this file since it is automatically
+#          generated
+#
+#############################################################
+ip_forward=yes
+spoofprotect=no
+syncookies=no

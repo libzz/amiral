@@ -1,0 +1,91 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+This template sets up the cfengine rules for DHCP on each host
+*#
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "cf.dhcp"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict with CFengine
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+################################################################
+#
+# cf.dhcp -- for %domain
+# $Date$
+#
+# This file contains configuration for the DHCP service
+#
+# WARNING: Do not modify this file since it is automatically
+#          generated
+#
+################################################################
+
+###########
+#
+# BEGIN cf.dhcp
+#
+###########
+
+control:
+
+    any::
+
+        # Classes that may become defined as we proceed
+        AddInstallable = ( restart_dhcp has_dhcp needs_dhcp )
+
+    restart_dhcp::
+        autodefine = ( /etc/dhcp3/dhcpd.conf )
+        autodefine = ( /etc/default/dhcp3-server )
+
+files:
+
+    any::
+        # Check run directory
+        /var/run/dhcp3 r=0 mode=0755 action=fixdirs ifelapsed=60
+        # Check configuration permissions
+        /etc/dhcp3/* mode=0640 owner=root group=root r=0 action=fixplain
+            inform=true syslog=true ifelapsed=60
+        /etc/default/dhcp3-server mode=0640 owner=root group=root r=0
+            action=fixplain inform=true syslog=true ifelapsed=60
+
+packages:
+
+    any::
+
+        # Check some crucial packages are installed
+        dhcp3-server pkgmgr=dpkg action=install ifelapsed=120
+
+copy:
+
+    any::
+
+        # DHCP configuration
+        $(host_config)/dhcpd.conf dest=/etc/dhcp3/dhcpd.conf mode=0640
+            server=$(policyhost) type=sum owner=root group=root
+        $(host_config)/dhcpd_default dest=/etc/default/dhcp3-server mode=0640
+            server=$(policyhost) type=sum owner=root group=root
+
+shellcommands:
+
+    any::
+
+    restart_dhcp.!PXE_booting::
+        "/etc/init.d/dhcp3-server restart"
+
+editfiles:
+
+###########
+#
+# END cf.dhcp
+#
+###########

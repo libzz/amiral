@@ -1,0 +1,26 @@
+Source: ccsd-private
+Section: private/admin
+Priority: optional
+Maintainer: Matt Brown <matt@crc.net.nz>
+Build-Depends: debhelper (>= 4.0.0)
+Standards-Version: 3.6.1
+
+Package: ccsd-private-modules
+Architecture: all
+Depends: ${shlibs:Depends}, ${misc:Depends}, ccsd
+Description: CRCnet Configuration System Daemon - Private Modules
+ This package contains private modules for the CRCnet Configuration
+ System. These modules are not licensed under the GPL and may not be used
+ without an explicit license from Waikato University.
+ .
+ Homepage: http://www.wand.net.nz/trac/ccs
+
+Package: crcnet-monitor-private-modules
+Architecture: all
+Depends: ${shlibs:Depends}, ${misc:Depends}, crcnet-monitor, graphviz, python-iwtools (>= 1.0r44), fping
+Description: CRCnet Configuration System Client - Private Modules
+ This package contains private modules for the CRCnet Monitor Software.
+ These modules are not licensed under the GPL and may not be used without
+ an explicit license from Waikato University.
+ .
+ Homepage: http://www.wand.net.nz/trac/ccs

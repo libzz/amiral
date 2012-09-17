@@ -1,0 +1,50 @@
+-- 
+-- PostgreSQL schema for the firewall
+--
+-- Author:   Matt Brown  <matt@crc.net.nz>
+-- Version:  $Id$
+--
+
+-- One entry in this table for each firewall class available in the system
+CREATE TABLE firewall_class (
+ firewall_class_id      SERIAL      PRIMARY KEY,
+ firewall_class_name    varchar(64) NOT NULL,
+ description            varchar(255) NOT NULL,
+ file_path              varchar(255) NOT NULL -- Relative to config base
+);
+CREATE TABLE firewall_class_history (
+ firewall_class_id      integer,
+ firewall_class_name    varchar(64),
+ description            varchar(255),
+ file_path              varchar(255),
+ changeset              integer     NOT NULL REFERENCES
+    changeset (changeset_id),
+ PRIMARY KEY (firewall_class_id, changeset)
+);
+CREATE TRIGGER firewall_class_history_t BEFORE INSERT OR UPDATE OR
+    DELETE ON firewall_class FOR EACH ROW EXECUTE PROCEDURE 
+    do_table_history();
+
+-- One entry in this table for each interface on a host that needs firewalling
+CREATE TABLE firewall_interface (
+ host_id                integer     NOT NULL REFERENCES 
+    host (host_id) ON DELETE CASCADE,
+ interface_id           integer     NOT NULL REFERENCES 
+    interface (interface_id) ON DELETE CASCADE,
+ firewall_class_id      integer     NOT NULL REFERENCES
+    firewall_class (firewall_class_id),
+ PRIMARY KEY (host_id, interface_id)
+);
+CREATE TABLE firewall_interface_history (
+ host_id                integer,
+ interface_id           integer,
+ firewall_class_id      integer,
+ changeset              integer     NOT NULL REFERENCES
+    changeset (changeset_id),
+ PRIMARY KEY(host_id, interface_id, changeset)
+);
+CREATE TRIGGER firewall_interface_history_t BEFORE INSERT OR UPDATE OR
+    DELETE ON firewall_interface FOR EACH ROW EXECUTE PROCEDURE 
+    do_table_history();
+
+-- vim: ft=sql

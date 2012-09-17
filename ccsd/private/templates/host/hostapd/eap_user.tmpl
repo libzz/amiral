@@ -1,0 +1,37 @@
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id: clients_conf.tmpl 1134 2006-11-21 03:10:34Z mglb1 $"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "eap_user"
+#attr $serviceName = "hostapd"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+!set %hostapd = %services["hostapd"]
+#############################################################
+#
+# eap_user -- HostAP user configuration for %domain
+# $Date$
+# 
+# WARNING: Do not modify this file since it is automatically
+#          generated.
+#
+#############################################################
+!for %name,%iface in %interfaces.items()
+!if not %iface.interface_active
+    !continue
+!end if
+!set %auth = %hostapd.interfaceEnabled(%session_id, %iface.interface_id)
+!if %auth != 2
+    !continue
+!end if
+*                   PEAP,TLS
+!break
+!end for

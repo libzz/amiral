@@ -1,0 +1,165 @@
+-- 
+-- PostgreSQL schema for deal with the column type change to the interface 
+-- table in r1448
+--
+-- *************************************************************************
+-- USE AT YOUR OWN RISK - BACKUP YOUR DATABASE FIRST!
+-- *************************************************************************
+--
+-- We changed the interface name size to be 16 characters long to match the
+-- maximum that linux will support. Postgres doesn't let you modify column
+-- types. So we need to dump the data to a temp table, drop the table, then
+-- recreate it and reimport the data. Doing that breaks foreign keys, etc
+-- so we also have to drop them and then recreate them at the end!
+--
+-- *************************************************************************
+-- Very messy! This file contains all the commands needed to fix up the
+-- database as of r1448. If you're running this on a database that's newer
+-- than r1448 in the future, you'll need to be various careful that other
+-- newer changes haven't added additional requirements that you'll need to
+-- deal with.
+-- *************************************************************************
+--
+-- *************************************************************************
+-- USE AT YOUR OWN RISK - BACKUP YOUR DATABASE FIRST!
+-- *************************************************************************
+--
+-- Author:   Matt Brown  <matt@crc.net.nz>
+-- Version:  $Id$
+
+-- ------------------
+-- Main table
+SELECT * INTO TEMP _interface FROM interface;
+DROP TABLE interface CASCADE;
+CREATE TABLE interface (
+ interface_id               SERIAL          PRIMARY KEY,
+ interface_type             integer         NOT NULL,
+ host_id                    integer         NOT NULL REFERENCES 
+    host (host_id) ON DELETE CASCADE,
+ link_id                    integer         NOT NULL REFERENCES 
+    link (link_id),
+ module_id                  integer         REFERENCES module (module_id),
+ ip_address                 inet,
+ name                       varchar(16)     NOT NULL,
+ use_gateway                boolean         NOT NULL default 'f',
+ subasset_id                integer         REFERENCES subasset (subasset_id),
+ -- interface to derive this interface from (for VLAN)
+ raw_interface              integer,
+ -- interface to bridge traffic on to
+ bridge_interface           integer,
+ interface_active           boolean         NOT NULL default 't',
+ -- Act as an AP
+ master_interface           boolean         NOT NULL default 'f',
+ -- Override the link channel when acting as an AP
+ master_channel             integer,
+ master_mode                varchar(20),
+ -- Allow the netmask to be overriden when configured as an alias
+ alias_netmask              integer,
+ -- Be silent, send nothing, capture everthing, no IP address
+ monitor_interface          boolean         NOT NULL default 'f',
+ CHECK ((interface_active='t' AND 
+    (subasset_id IS NOT NULL OR raw_interface IS NOT NULL)) OR 
+    interface_active='f'),
+ CHECK ((master_channel IS NOT NULL AND master_interface='t') OR
+    master_channel IS NULL),
+ CHECK ((monitor_interface='t' AND master_interface='f' AND 
+    bridge_interface IS NULL) OR monitor_interface='f')
+);
+alter table interface drop constraint "$1";
+alter table interface drop constraint "$2";
+alter table interface drop constraint "$3";
+alter table interface drop constraint "$4";
+alter table interface drop constraint "$5";
+alter table interface drop constraint "$6";
+alter table interface drop constraint "$7";
+INSERT INTO interface (interface_id, interface_type, host_id, link_id, module_id, ip_address, name, use_gateway, subasset_id, raw_interface, bridge_interface, interface_active, master_interface, master_channel, master_mode, alias_netmask, monitor_interface) SELECT interface_id, interface_type, host_id, link_id, module_id, ip_address, name, use_gateway, subasset_id, raw_interface, bridge_interface, interface_active, master_interface, master_channel, master_mode, alias_netmask, monitor_interface FROM _interface;
+alter table interface add CHECK (interface_active = true AND (subasset_id IS NOT NULL OR raw_interface IS NOT NULL) OR interface_active = false);
+alter table interface add FOREIGN KEY (host_id) REFERENCES host(host_id) ON DELETE CASCADE;
+alter table interface add FOREIGN KEY (link_id) REFERENCES link(link_id);
+alter table interface add FOREIGN KEY (module_id) REFERENCES module(module_id);
+alter table interface add FOREIGN KEY (subasset_id) REFERENCES subasset(subasset_id);
+alter table interface add CHECK (master_channel IS NOT NULL AND master_interface = true OR master_channel IS NULL);
+alter table interface add CHECK (monitor_interface = true AND master_interface = false AND bridge_interface IS NULL OR monitor_interface = false);
+
+select setval('interface_interface_id_seq', (select interface_id from interface order by interface_id desc limit 1)+1, true);
+
+-- ------------------
+-- History table
+SELECT * INTO TEMP _interface_history FROM interface_history;
+DROP TABLE interface_history CASCADE;
+CREATE TABLE interface_history (
+ interface_id               integer         NOT NULL,
+ interface_type             integer,
+ host_id                    integer,
+ link_id                    integer,
+ module_id                  integer,
+ ip_address                 inet,
+ name                       varchar(16),
+ use_gateway                boolean,
+ subasset_id                integer,
+ raw_interface              integer,
+ bridge_interface           integer,
+ interface_active           boolean,
+ master_interface           boolean,
+ master_channel             integer,
+ master_mode                varchar(20),
+ alias_netmask              integer,
+ monitor_interface          boolean,
+ changeset                  integer NOT NULL REFERENCES changeset
+    (changeset_id),
+ PRIMARY KEY (interface_id, changeset)
+);
+alter table interface_history drop constraint "$1";
+INSERT INTO interface_history (interface_id, interface_type, host_id, link_id, module_id, ip_address, name, use_gateway, subasset_id, raw_interface, bridge_interface, interface_active, master_interface, master_channel, master_mode, alias_netmask, monitor_interface, changeset) SELECT interface_id, interface_type, host_id, link_id, module_id, ip_address, name, use_gateway, subasset_id, raw_interface, bridge_interface, interface_active, master_interface, master_channel, master_mode, alias_netmask, monitor_interface, changeset FROM _interface_history;
+alter table interface_history add  FOREIGN KEY (changeset) REFERENCES changeset(changeset_id);
+
+-- ------------------
+-- Add trigger back
+CREATE TRIGGER interface_t BEFORE INSERT OR UPDATE OR DELETE ON 
+    interface FOR EACH ROW EXECUTE PROCEDURE do_table_history();
+
+-- ------------------
+-- Add other references back
+CREATE VIEW customer_interfaces AS SELECT 
+    c.contact_id, c.username, h.host_name, h.host_id, i.name AS interface_name,
+    replace(m.mac,':','-') AS interface_mac FROM customers c, 
+    customer_interface ci, interface i, interface i2, host h, asset_macs m 
+    WHERE c.contact_id=ci.contact_id AND ci.interface_id=i.interface_id AND 
+    i.raw_interface=i2.interface_id AND i2.host_id=h.host_id AND 
+    i2.subasset_id=m.subasset_id AND c.connection_method!='Wireless';
+CREATE VIEW radius_interface_check AS SELECT contact_id as id, username,
+    'Called-Station-ID' AS attribute, '==' AS op, interface_mac AS value
+    FROM customer_interfaces UNION SELECT contact_id as id, username,
+    'Auth-Type' as attribute, ':=' as op, 'Accept' as value FROM 
+    customer_interfaces;
+CREATE VIEW radius_check AS 
+    SELECT * FROM radius_check_extra UNION 
+    SELECT * FROM radius_passwd UNION
+    SELECT * FROM radius_interface_check;
+alter table customer_interface add FOREIGN KEY (interface_id) REFERENCES interface(interface_id) ON DELETE CASCADE;
+CREATE VIEW interface_linkdescs AS SELECT i.interface_id, i.host_id, 
+    i.link_id, i.module_id, i.ip_address, i.alias_netmask, i.name, 
+    i.use_gateway, i.subasset_id, i.interface_active, i.master_interface,
+    i.monitor_interface, i.bridge_interface, i.interface_type, 
+    i.master_mode, i.master_channel, i.raw_interface, 
+    l.description AS link_desc,  sa.asset_id FROM link l, interface i 
+    LEFT JOIN subasset sa ON i.subasset_id=sa.subasset_id WHERE 
+    i.link_id=l.link_id;
+alter table firewall_interface add FOREIGN KEY (interface_id) REFERENCES interface(interface_id) ON DELETE CASCADE;
+alter table hostapd_interface add FOREIGN KEY (interface_id) REFERENCES interface(interface_id) ON DELETE CASCADE;
+alter table dhcp_statics add FOREIGN KEY (interface_id) REFERENCES interface(interface_id) ON DELETE CASCADE;
+alter table dhcp_statics add FOREIGN KEY (interface_id) REFERENCES interface(interface_id) ON DELETE CASCADE;
+alter table dhcp_interface add FOREIGN KEY (interface_id) REFERENCES interface(interface_id) ON DELETE CASCADE;
+alter table quagga_ospf_interface add FOREIGN KEY (interface_id) REFERENCES interface(interface_id) ON DELETE CASCADE;
+CREATE VIEW interface_gpslocation AS SELECT i.interface_id, i.link_id, 
+    s.gps_lat, s.gps_long FROM interface i, host h LEFT JOIN site s ON
+    h.site_id=s.site_id WHERE i.host_id=h.host_id;
+CREATE VIEW link_interface_count AS SELECT link_id, count(*) AS
+    no_interfaces FROM interface GROUP BY link_id;
+
+-- ------------------
+-- Clean Up
+DROP TABLE _interface;
+DROP TABLE _interface_history;
+ 
+-- vim: ft=sql

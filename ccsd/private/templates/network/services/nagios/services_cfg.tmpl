@@ -1,0 +1,140 @@
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "services.cfg"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict with Nagios
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+!set %nagios = %services["nagios"]
+#############################################################
+#
+# services.cfg -- for %domain
+# $Date$
+# 
+# WARNING: Do not modify this file since it is automatically
+#          generated.
+# 
+#          Site specific configuration that you wish to keep 
+#          separate from the configuration system can be
+#          placed in the local.cfg file in this directory
+#
+#############################################################
+
+# ** Master Service Check Template **
+define service{
+        name                            generic-service
+        active_checks_enabled           1
+        passive_checks_enabled          1
+        parallelize_check               1
+        obsess_over_service             0
+        check_freshness                 0
+        notifications_enabled           1
+        event_handler_enabled           1
+        flap_detection_enabled          1
+        process_perf_data               0
+        retain_status_information       1
+        retain_nonstatus_information    1
+        check_period                    24x7
+        contact_groups                  %nagios.default_contact_group
+
+        register                        0
+}
+
+# ** Service Check Templates **
+define service {
+        use                             generic-service
+        name                            g-load
+
+        service_description             CPU Load Check
+        check_command                   check_snmp!public!enterprises.ucdavis.laTable.laEntry.laLoad.1,enterprises.ucdavis.laTable.laEntry.laLoad.2,enterprises.ucdavis.laTable.laEntry.laLoad.3!2,1,1!3,2,2
+        max_check_attempts              3
+        normal_check_interval           5
+        retry_check_interval            1
+        notification_interval           20
+        notification_period             24x7
+        notification_options            w,u,c,r
+
+        register                        0
+}
+
+define service {
+        use                             generic-service
+        name                            g-http
+
+        service_description             Web Server
+        check_command                   check_http
+        max_check_attempts              3
+        normal_check_interval           1
+        retry_check_interval            1
+        notification_interval           60
+        notification_period             24x7
+        notification_options            w,u,c,r
+
+        register                        0
+}
+
+# Ping Service Check
+define service {
+        use                             generic-service
+        name                            g-ping
+
+        service_description             Ping Check
+        check_command                   check_ping!1000,40%!2000,60%
+        max_check_attempts              3
+        normal_check_interval           1
+        retry_check_interval            1
+        notification_interval           60
+        notification_period             24x7
+        notification_options            u,c,r
+        contact_groups                  null
+
+        register                        0
+}
+
+# NTP Service Check
+define service {
+        use                             generic-service
+        name                            g-ntp
+
+        service_description             NTP Check
+        check_command                   check_ntp
+        max_check_attempts              3
+        normal_check_interval           5
+        retry_check_interval            1
+        notification_interval           30
+        notification_period             24x7
+        notification_options            n
+
+        register                        0
+}
+
+#### SERVICE DEFINITIONS ####
+
+# Ping Checks
+define service {
+    use                 g-ping
+    hostgroup_name      all
+}
+
+# Load Checks
+define service {
+    use                 g-load
+    hostgroup_name      all
+}
+
+!! Process checks are not yet available
+!!for %serviceName,%service in %services.items()
+!!define service {
+!!    use                 g-%{serviceName}-proc
+!!    hostgroup_name      %{serviceName}_hosts
+!!}
+!!end for
+

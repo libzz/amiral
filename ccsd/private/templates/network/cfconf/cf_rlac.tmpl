@@ -1,0 +1,76 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+This template sets up the rlac configuration on each host
+*#
+#attr $author = "Chris Browning <chris@rurallink.co.nz>"
+#attr $version = "$Id: cf_rlac.tmpl 1266 2007-01-03 02:23:32Z mglb1 $"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "cf.rlac"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict with CFengine
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+################################################################
+#
+# cf.rlac -- for %domain
+# $Date$
+#
+# This file contains configuration for Rlac
+#
+# WARNING: Do not modify this file since it is automatically
+#          generated
+#
+################################################################
+
+###########
+#
+# BEGIN cf.rlac
+#
+###########
+
+control:
+
+    any::
+
+        # Classes that may become defined as we proceed
+        AddInstallable = ( restart_rlac )
+
+    restart_rlac::
+        autodefine = ( /etc/default/rlac )
+
+packages:
+
+    any::
+
+    # Check some crucial packages are installed
+    rlac pkgmgr=dpkg action=install ifelapsed=120
+
+copy:
+
+    any::
+
+    # Rlac configuration
+    $(host_config)/rlac_default dest=/etc/default/rlac mode=0640
+        server=$(policyhost) type=sum owner=root group=root
+
+shellcommands:
+
+    any::
+
+    restart_rlac::
+        "/etc/init.d/rlac stop"
+        "/etc/init.d/rlac start"
+
+###########
+#
+# END cf.rlac
+#
+###########

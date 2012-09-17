@@ -1,0 +1,102 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+This template creates the zebra daemon configuration
+*#
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "ospfd.conf"
+#attr $serviceName = "quagga"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+!
+! CRCnet BiscuitPC Quagga Configuration
+!
+! This file was automatically generated on the date below, DO NOT EDIT
+! \$Date$
+hostname $host_name
+#if $service.quagga.telnet_password != ""
+password $service.quagga.telnet_password
+#end if
+#if $service.quagga.enable_password
+enable password $service.quagga.enable_password
+#end if
+
+#for $name,$iface in $interfaces.items()
+#if $iface.interface_active and $service.quagga.interfaces[$name].ospf_enabled
+! Interface $name ($iface.ip_address)
+#set c=""
+#else if $iface.interface_active
+! OSPF is not enabled on Interface $name ($iface.ip_address)
+#set c=""
+#else
+! Interface $name ($iface.ip_address) is disabled
+#set c="!"
+#end if
+${c}interface $name
+#if $service.quagga.interfaces[$name].ospf_enabled
+    ! Interface Mode ($iface.type $iface.mode)
+#if $iface.mode == "100"
+$c    ip ospf cost 5
+#else if $iface.mode == "10"
+$c    ip ospf cost 15
+#else if $iface.mode == "a" or $iface.mode == "g"
+$c    ip ospf cost 30
+#else
+$c    ip ospf cost 50
+#end if
+#if $service.quagga.interfaces[$name].priority != ""
+$c    ip ospf priority $service.quagga.interfaces[$name].priority
+#end if
+#if $service.quagga.interfaces[$name].md5_auth and $service.quagga.interfaces[$name].md5_key != ""
+$c    ip ospf authentication message-digest
+$c    ip ospf message-digest-key 1 md5 $service.quagga.interfaces[$name].md5_key
+#end if
+#end if
+
+#end for
+
+! Router Process
+router ospf
+    ospf router-id $ip_address
+#if $service.quagga.redistribute_static
+    redistribute static
+#end if
+#if $service.quagga.redistribute_connected
+    redistribute connected
+#end if
+#if $is_gateway
+    default-information originate
+#end if
+
+#for $name,$iface in $interfaces.items()
+    #if not "network" in $iface.keys()
+        #continue
+    #end if
+    #if $service.quagga.interfaces[$name].ospf_enabled
+        #set $area = $service.quagga.interfaces[$name].area_no
+    #else
+    passive-interface $name
+        #set $area = $service.quagga.area_no
+    #end if
+    #if $area == ""
+        #set $area = $service.quagga.area_no
+    #end if
+    #for $alias in $iface.aliases
+        #if not $alias.interface_active or $links[$alias.link_id].shared_network
+            #continue
+        #end if
+    network $alias.ip_address/$alias.alias_netmask area $area
+    #end for
+    #if not $iface.interface_active or $links[$iface.link_id].shared_network
+        #continue
+    #end if
+    network $iface.network/$iface.cidr_netmask area $area
+#end for
+    passive-interface dummy0
+    network $ip_address/32 area $service.quagga.area_no
+
+! No log file

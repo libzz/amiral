@@ -1,0 +1,47 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+Default SSMTP Config File for CRCnet Biscuit PCs
+*#
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "ssmtp.conf"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+#############################################################
+#
+# ssmtp.conf -- for %domain 
+# $Date$
+#
+# This file contains the default SSMTP configuration for
+# CRCnet Biscuit PCs
+#
+# WARNING: Do not modify this file since it is automatically
+#          generated
+#
+#############################################################
+# The person who gets all mail for userids < 1000
+root=root
+
+# The place where the mail goes. The actual machine name is required no
+# MX records are consulted. Commonly mailhosts are named mail.domain.com
+mailhub=%smtp_server
+
+# Where will the mail seem to come from?
+rewriteDomain=%{host_name}.%{domain}
+
+# The full hostname
+hostname=%{host_name}.%{domain}
+
+# Set this to never rewrite the "From:" line (unless not given) and to
+# use that address in the "from line" of the envelope.
+FromLineOverride=YES

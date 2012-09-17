@@ -1,0 +1,129 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+This template controls the operation of the CFengine server
+*#
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "cfservd.conf"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict with CFengine
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+#############################################################
+#
+# cfservd.conf -- for %domain
+# $Date$
+#
+# This file contains configuration for the CFengine server 
+# on the central node.
+#
+# WARNING: Do not modify this file since it is automatically
+#          generated
+#
+#############################################################
+control:
+
+    any::
+        domain = ( %domain )
+
+        cfrunCommand = ( "/usr/sbin/cfagent" )
+
+        # Connecting user must be root or cfengine
+        AllowUsers = ( root cfengine )
+
+        # Allow configuration from any range known to the config system
+        # XXX: May want to tighten this in future
+!for %link_class_id,%link_class in %link_classes.items()        
+        !if len(%link_class.netblock) > 0
+        AllowConnectionsFrom = ( %link_class.netblock )
+        !end if
+!end for
+        # Allow multiple connections from ourself
+        AllowMultipleConnectionsFrom = ( %policy_ip )
+
+        # Trust keys from our PXEboot ranges
+!! This is a hack, look for 'PXE' in the link description
+!for %link_id,%link in %links.items()
+    !if %link["description"].find("PXE") != -1
+        # %link.description
+        TrustKeysFrom = ( %link.network_address )
+        DynamicAddresses = ( %link.network_address )
+    !end if
+!end for
+
+        # Allow (known) keys to connect from any link that is running
+        # as an AP, on the assumption that APs are serving CPEs and 
+        # CPEs have dynamic IPs.
+!for %host_name,%host in %hosts.items()
+!if len(%host.interfaces) == 0
+    !continue
+!end if
+    !for %ifname,%iface in %host.interfaces.items()
+        !if not %iface.master_interface
+            !continue
+        !end if
+        !set %link = %links[%iface.link_id]
+        !if len(%link.network_address) > 0
+        DynamicAddresses = ( %link.network_address )
+        !end if
+    !end for
+!end for
+
+        IfElapsed = ( 0 )
+        ExpireAfter = ( 15 )
+        MaxConnections = ( 40 )
+        MultipleConnections = ( true )
+        LogAllConnections = ( true )
+
+grant:
+
+    any::
+        # Grant access to all hosts that we are allowing connections from
+        # Files should be world readable
+!for %link_class_id,%link_class in %link_classes.items()
+        /var/lib/cfengine2/inputs    %link_class.netblock
+!end for
+
+        # Allow cfagent to be invoked from the policy server
+        /usr/sbin/cfagent       %policy_ip
+
+deny:
+
+    any::
+        # Prevent CPEs that have connected via an Dynamic IP above from
+        # access (possibly sensitive) configuration related to proper
+        # hosts and services on the network.
+!for %host_name,%host in %hosts.items()
+!if len(%host.interfaces) == 0
+    !continue
+!end if
+    !for %ifname,%iface in %host.interfaces.items()
+        !if not %iface.master_interface
+            !continue
+        !end if
+        !set %link = %links[%iface.link_id]
+        !if len(%link.network_address) <= 0
+            !continue
+        !end if
+        /var/lib/cfengine2/inputs/hosts/* %link.network_address
+        /var/lib/cfengine2/inputs/services/* %link.network_address
+        /var/lib/cfengine2/inputs/crcnet-bpc/* %link.network_address
+        /var/lib/cfengine2/inputs/crcnet/* %link.network_address
+        /var/lib/cfengine2/inputs/sshkeys/* %link.network_address
+    !end for
+!end for
+
+###########
+#
+# END cfservd.conf
+#
+###########

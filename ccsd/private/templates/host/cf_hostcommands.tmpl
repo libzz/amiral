@@ -1,0 +1,56 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+This template generates the host specific CFengine configuration file
+*#
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "cf.hostcommands"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict with CFengine
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+#############################################################
+#
+# cf.hostcommands -- for %host_name.%domain 
+# $Date$
+#
+# This file contains host-specific commands that cannot go
+# in the network wide CFengine configuration
+#
+# WARNING: Do not modify this file since it is automatically
+#          generated
+#
+#############################################################
+
+###########
+#
+# BEGIN cf.hostcommands
+#
+###########
+
+packages:
+
+    any::
+        # It would be kind of an oxymoron to have anything here
+
+    # Ensure that we install the madwifi driver/tools on hosts with Atheros 
+    # cards. This is set here rather than in cf.crcnetbpc because we need 
+    # access to the host specific kernel version for the madwifi package name
+    AssetType_Atheros_802_11abg_miniPCI_Card|AssetType_Atheros_802_11abg_PCMCIA_Card::
+        madwifi-ng-tools pkgmgr=dpkg action=install
+        madwifi-ng-modules-%kernel_name pkgmgr=dpkg action=install
+    
+###########
+#
+# END cf.hostcommands
+#
+###########

@@ -1,0 +1,204 @@
+# Copyright (C) 2006  The University of Waikato
+#
+# This file is part of the CRCnet Configuration System Daemon
+#
+# Rurallink Monitor Traffic Firewalling  - All Interfaces
+#
+# Author:       Matt Brown <matt@crc.net.nz>
+# Version:      $Id$
+#
+# No usage or redistribution rights are granted for this file unless
+# otherwise confirmed in writing by the copyright holder.
+#
+# Packets coming in this interface and destined for the Internet (defined as
+# being not RFC1918 addresses) is handled depending on the $if_policy
+# environment variable loaded from the CRCnet monitor preferences file.
+# If that variable is not present then access to the Internet is disallowed
+# from this interface
+#
+# WEP is used to prevent unwanted devices from associating. If MAC filter
+# is set in the preferences file then a MAC address filter is added also.
+RURALLINK_MONITOR_CONFIG="/etc/ccsd/rurallink-monitor.conf"
+RURALLINK_MONITOR_PREFERENCES="/var/lib/ccsd/preferences"
+RURALLINK_MONITOR_ASSOC_DIR="/var/lib/ccsd"
+
+# Retrieve interface names
+eval `grep "^internal_ifname" $RURALLINK_MONITOR_CONFIG | sed 's/ //g'`
+eval `grep "^ap0_ifname" $RURALLINK_MONITOR_CONFIG | sed 's/ //g'`
+if [ -z "$internal_ifname" ]; then internal_ifname="int"; fi
+if [ -z "$ap0_ifname" ]; then ap0_ifname="ap0"; fi
+# And master state
+eval `grep "^is_master" $RURALLINK_MONITOR_CONFIG | sed 's/ //g'`
+if [ -z "$is_master" ]; then is_master=0; else is_master=1; fi
+
+# Load CRCnet monitor preferences
+eval `egrep -v "^\[|^$" < $RURALLINK_MONITOR_PREFERENCES | sed 's/ //g'`
+
+# Try and match this interface
+if [ "$if" == "$internal_ifname" ]; then
+    ifpolicy="$internal_policy"
+    # Default to allowing access from the internal network 
+    # if the daemon hasn't specified an access policy yet
+    if [ -z "$ifpolicy" ]; then
+        ifpolicy="allow"
+    fi
+elif [ "$if" == "$ap0_ifname" ]; then
+    ifpolicy="$ap0_policy"
+    # Default to allowing password access from the wireless network 
+    # if the daemon hasn't specified an access policy yet on master nodes
+    # Other nodes just allow
+    if [ -z "$ifpolicy" ]; then
+        if [ "$is_master" -gt  "0" ]; then
+            ifpolicy="password"
+        else
+            ifpolicy="allow"
+        fi
+    fi
+else
+    ifpolicy="deny"
+fi
+
+if [ -z "$captive_portal_port" ]; then
+    CP_PORT="81"
+else
+    CP_PORT="$captive_portal_port"
+fi
+
+# Load these rules on startup
+on_startup
+
+# Deal with inbound local packets differently depending on configuration
+if [ "$if" == "$internal_ifname" -a "$isptype" == "dsl" ]; then
+    # DSL Modem is attached to this interface
+    # Accept local packets directly in 
+    policy in ACCEPT --source 192.168.0.0/16
+    policy in ACCEPT --source 172.16.0.0/12
+    policy in ACCEPT --source 10.0.0/8
+    # Rules for external traffic copied from external chain
+    policy in ACCEPT --protocol 41 # allow IPv6 on IPv4
+    # SSH on port 2001
+    policy in ACCEPT --protocol tcp --destination-port 2001
+    policy in tcp-strict
+    policy in udp-strict
+    policy in icmp-trust
+    policy in multicast-trust
+elif [ "$if" == "$internal_ifname" -a "$isptype" == "eth" ]; then
+    # All internet traffic is sent out this interface to the default gateway
+    # NAT it onto the IP of this interface
+    policy postrouting-out MASQUERADE
+    # Accept local packets directly in 
+    policy in ACCEPT --source 192.168.0.0/16
+    policy in ACCEPT --source 172.16.0.0/12
+    policy in ACCEPT --source 10.0.0/8
+    # Rules for external traffic copied from external chain
+    policy in ACCEPT --protocol 41 # allow IPv6 on IPv4
+    # SSH on port 2001
+    policy in ACCEPT --protocol tcp --destination-port 2001
+    policy in tcp-strict
+    policy in udp-strict
+    policy in icmp-trust
+    policy in multicast-trust
+else 
+    # Accept all traffic when not use for Internet access
+    policy in ACCEPT 
+fi
+
+# Accept packets directly out of the interface
+policy out ACCEPT 
+
+# Inbound forwarded traffic
+###########################
+
+if [ "$if" == "$ap0_ifname" -a -n "$ap0_macfilter" ]; then
+    # Perform MAC address blocking to prevent non-associated devices from
+    # sending traffic onto the rest of the network
+    new_chain ${if}-macfilter
+    # Tell the script this is loaded already
+    IMPORTED="$IMPORTED ${if}-macfilter"
+    policy forward-in ${if}-macfilter
+
+    while read serialno name ip_addr mac
+    do
+        policy macfilter fw-forward-out -m mac --mac-source $mac
+    done < ${RURALLINK_MONITOR_ASSOC_DIR}/${if}.assoc
+    policy macfilter DROP
+fi
+
+# Accept non-internet (RFC1918) traffic
+policy forward-in ACCEPT --destination 192.168.0.0/16
+policy forward-in ACCEPT --destination 172.16.0.0/12
+policy forward-in ACCEPT --destination 10.0.0.0/8
+
+# Deal with inbound local packets differently depending on configuration
+if [ "$if" == "$internal_ifname" ]; then
+    if [ "$isptype" == "dsl" -o "$isptype" == "eth" ]; then
+        # DSL Modem or Default Gateway is attached to this interface
+        
+        # Keep the internet clean - block known MS worm traffic
+        policy forward-in reject-ms
+        policy forward-out reject-ms
+
+        # Hook in the accounting stuff
+        policy forward-in accounting
+        policy forward-out ACCEPT --source 192.168.0.0/16
+        policy forward-out ACCEPT --source 172.16.0.0/12
+        policy forward-out ACCEPT --source 10.0.0.0/8
+        policy forward-out accounting
+    fi
+fi
+
+# Apply the specified policy to Internet traffic
+case $ifpolicy in
+allow)
+    # Allow all Internet traffic coming in this interface
+    policy forward-in ACCEPT
+;;
+password)
+    # Captive portal the traffic
+    policy prerouting-in ACCEPT --destination 192.168.0.0/16
+    policy prerouting-in ACCEPT --destination 172.16.0.0/12
+    policy prerouting-in ACCEPT --destination 10.0.0.0/8
+    # Allow directly associated clients out without a password
+    while read serialno name ip_addr mac
+    do
+        policy prerouting-in ACCEPT --source ${ip_addr}/32
+        policy forward-in ACCEPT --source ${ip_addr}/32
+        # And allow their subclients as well
+        while read cserialno cname cip_addr
+        do
+            policy prerouting-in ACCEPT --source ${cip_addr}/32
+            policy forward-in ACCEPT --source ${cip_addr}/32
+        done < ${RURALLINK_MONITOR_ASSOC_DIR}/${ip_addr}.assoc
+    done < ${RURALLINK_MONITOR_ASSOC_DIR}/${if}.assoc
+    # Redirect all other traffic to the captive portal
+    policy prerouting-in REDIRECT -p tcp --dport 80 --to-ports $CP_PORT
+;;
+*)
+    # Treat any other values as deny
+    polite_reject forward-in 
+;;
+esac
+
+# Outbound forwarded traffic is fine
+policy forward-out ACCEPT 
+
+if_feature rp_filter 1 		     # Enable Reverse Router Filtering
+if_feature bootp_relay 0         # Dont forward bootp requests
+if_feature forwarding 1          # forward packets arriving at this interface
+if_feature log_martians 0        # log martians?
+# Send redirects?
+if [ "$if" == "$internal_ifname" ]; then
+    if [ "$isptype" == "dsl" -o "$isptype" == "eth" ]; then
+        if_feature accept_redirects 0
+        if_feature accept_source_route 0
+        if_feature send_redirects 0
+    else
+        if_feature accept_redirects 1
+        if_feature accept_source_route 1
+        if_feature send_redirects 1
+    fi
+else
+    if_feature accept_redirects 1
+    if_feature accept_source_route 1
+    if_feature send_redirects 1
+fi

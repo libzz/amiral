@@ -1,0 +1,17 @@
+#!/bin/sh
+
+set -e
+#set -x
+
+. /usr/share/debconf/confmodule
+. /usr/share/dbconfig-common/dpkg/postrm
+dbc_go ccsd $@
+
+if [ "$1" = "purge" ]; then
+    rm -f /etc/ccsd/ccsd.conf
+    ucf --purge /etc/ccsd/ccsd.conf
+    rm -f /etc/ccsd/ccsd*.pem
+    rm -rf /var/run/ccsd
+fi
+
+#DEBHELPER#

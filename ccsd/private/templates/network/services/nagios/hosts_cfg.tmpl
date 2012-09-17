@@ -1,0 +1,71 @@
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "hosts.cfg"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict with Nagios
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+!set %nagios = %services["nagios"]
+#############################################################
+#
+# hosts.cfg -- for %domain
+# $Date$
+# 
+# WARNING: Do not modify this file since it is automatically
+#          generated.
+# 
+#          Site specific configuration that you wish to keep 
+#          separate from the configuration system can be
+#          placed in the local.cfg file in this directory
+#
+#############################################################
+
+define host {
+    name                            generic-host
+    notifications_enabled           1
+    event_handler_enabled           1
+    flap_detection_enabled          1
+    process_perf_data               1
+    retain_status_information       1
+    retain_nonstatus_information    1
+    check_command                   check-host-alive
+    max_check_attempts              10
+    check_interval                  0
+    notification_interval           60
+    notification_period             24x7
+    notification_options            d,r
+    contact_groups                  %nagios.default_contact_group
+
+    register                        0
+}
+
+!for %host_name,%host in %hosts.items()
+!if %host.host_active
+define host {
+    use                 generic-host
+    host_name           %host_name
+    alias               %host_name Router
+    address             %host.ip_address
+    !try
+        !set %parents = %nagios.parents[%host_name]
+    !except
+        !set %parents = ""
+    !end try
+    !if %parents != ""
+    parents             %parents
+    !end if
+}
+!else
+# %host_name is disabled
+!end if
+
+!end for
+

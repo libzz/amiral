@@ -1,0 +1,1089 @@
+CRCNET-MIB  DEFINITIONS ::= BEGIN
+
+IMPORTS
+    enterprises, Integer32, Gauge32, Counter64, MODULE-IDENTITY, OBJECT-TYPE, IpAddress
+                                            FROM SNMPv2-SMI
+    TEXTUAL-CONVENTION, DisplayString, PhysAddress
+                                            FROM SNMPv2-TC
+    InterfaceIndex
+                                            FROM IF-MIB;
+
+crcnet MODULE-IDENTITY
+    LAST-UPDATED "200811180000Z"
+    ORGANIZATION "CRCnet Wireless Research Project"
+    CONTACT-INFO
+        "CRCnet Administrator
+
+         Postal: C/- Computer Science Department
+                 University of Waikato
+                 Private Bag 3105
+                 Hamilton
+                 New Zealand
+
+         Tel: +64 7 838 4021
+         Fax: +64 7 858 5095
+
+         E-mail: help@crc.net.nz
+         WWW: http://www.crc.net.nz/
+        "
+    DESCRIPTION
+		"CRCnet MIB for network status information."
+	    
+    REVISION	  "200811180000Z"
+    DESCRIPTION
+		"Added wmpDeviceStats table, removed rateTable,
+		OctetString -> OCTET STRING, etc."
+    REVISION      "200702190000Z"
+    DESCRIPTION
+		"Added support for reporting madwifi rate statistics"
+    REVISION      "200611200000Z"
+    DESCRIPTION
+		"Lots of minor changes to fix validation. See:
+        https://secure.wand.net.nz/trac/ccs/changeset/1121 
+        "
+    REVISION      "200608160000Z"
+    DESCRIPTION
+		"Added OIDs to describe the current host configuration."
+    REVISION      "200603300000Z"
+    DESCRIPTION
+		"Revised object types."
+    REVISION      "200412160000Z"
+    DESCRIPTION
+		"Initial Revision of CRCnet MIB."
+    ::= { enterprises 15120 }
+
+network OBJECT IDENTIFIER ::= { crcnet 1 }
+
+--
+-- OID Assignments
+--
+
+
+    linkStats   OBJECT IDENTIFIER ::= { network 1 }
+    solarStats  OBJECT IDENTIFIER ::= { network 2 }
+    hostInfo    OBJECT IDENTIFIER ::= { network 3 }
+    crcnetwireless    OBJECT IDENTIFIER ::= { network 4 }
+    wireless    OBJECT IDENTIFIER ::= { crcnetwireless 1 }
+    clients    OBJECT IDENTIFIER ::= { crcnetwireless 2 }
+    wmpDeviceStats OBJECT IDENTIFIER ::= {crcnetwireless 4 }
+    tristar45   OBJECT IDENTIFIER ::= { solarStats 1 }
+
+lsNumber  OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "The number of wireless network interfaces which link statistics
+						are present for on this system."
+    ::= { linkStats 1 }
+ 
+LsEntry ::= SEQUENCE {
+    lsIndex                 InterfaceIndex,
+    lsDescr                 DisplayString,
+    lsPhysAddress           PhysAddress,
+    lsIpAddress             IpAddress,
+    lsCurrentQuality        Integer32,
+    lsCurrentSignalLevel    Integer32,
+    lsCurrentNoiseLevel     Integer32,
+    lsChannel               Integer32,
+    lsESSID                 DisplayString,
+    lsBitRate               Integer32,
+    lsClients               Integer32,
+    lsAthCRC                Integer32,
+    lsAthPHY                Integer32,
+}
+
+
+lsEntry OBJECT-TYPE
+    SYNTAX      LsEntry
+    MAX-ACCESS  not-accessible
+    STATUS      current
+    DESCRIPTION
+        "An entry containing management information applicable to a
+        particular wireless interface."
+    INDEX   { lsIndex }
+    ::= { linkStatsTable 1 }
+
+
+--
+-- linkStats group
+--
+linkStatsTable OBJECT-TYPE
+    SYNTAX      SEQUENCE OF LsEntry
+    MAX-ACCESS  not-accessible
+    STATUS      current
+    DESCRIPTION
+        "This table contains an enumeration of the signal strength for
+        each wireless interface. Getting this information is a little
+        haphazard. If nothing is being returned, ensure iwspy has been
+        run on the machine"
+    ::= { linkStats 2 }
+
+lsIndex OBJECT-TYPE
+    SYNTAX      InterfaceIndex
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+        "A unique value, greater than zero, for each interface.  It is
+        recommended that values are assigned contiguously starting from 1.
+        The value for each interface sub-layer must remain constant at
+        least from one re-initialization of the entity's network management
+        system to the next re-initialization."
+    ::= { lsEntry 1 }
+    
+lsDescr OBJECT-TYPE
+    SYNTAX      DisplayString (SIZE (0..255))
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "A textual string containing information about the
+            interface.  This string should include the name of the
+            manufacturer, the product name and the version of the
+            interface hardware/software."
+  ::= { lsEntry 2 }
+
+lsPhysAddress OBJECT-TYPE
+    SYNTAX      PhysAddress
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+        "The interface's address at its protocol sub-layer.  For example,
+        for an 802.x interface, this object normally contains a MAC address.
+        The interface's media-specific MIB must define the bit and byte
+        ordering and the format of the value of this object.  For interfaces
+        which do not have such an address (e.g., a serial line), this object
+        should contain an octet string of zero length."
+    ::= { lsEntry 3 }
+    
+lsIpAddress OBJECT-TYPE
+    SYNTAX      IpAddress
+    MAX-ACCESS 	read-only
+    STATUS      current
+    DESCRIPTION
+        "The IP Address of the local interface this entry refers to"
+    ::= { lsEntry 4 }
+    
+
+lsCurrentQuality OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION "The quality value for this link at the current point in time"
+    ::= { lsEntry 5 }
+    
+lsCurrentSignalLevel OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-only
+    STATUS      current	
+    DESCRIPTION 
+        "The signal strength value for this link at the current point in time"
+    ::= { lsEntry 6 }
+    
+lsCurrentNoiseLevel OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-only
+    STATUS      current	
+    DESCRIPTION 
+        "The noise strength value for this link at the current point in time"
+    ::= { lsEntry 7 }
+        
+lsChannel OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION 
+        "The channel number that the link is operating on at the current point
+        in time."
+    ::= { lsEntry 8 }
+    
+lsESSID OBJECT-TYPE
+    SYNTAX      DisplayString
+    MAX-ACCESS  read-only
+    STATUS      current	
+    DESCRIPTION "The current ESSID of the link"
+    ::= { lsEntry 9 }
+    
+lsBitRate OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-only
+    STATUS      current	
+    DESCRIPTION "The current Bit Rate the link is operating with"
+    ::= { lsEntry 10 }
+    
+lsClients OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-only
+    STATUS      current	
+    DESCRIPTION "The current number of clients connected to this ap"
+    ::= { lsEntry 11 }
+    
+lsAthCRC OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+        "The number of reported tries."
+    ::= { lsEntry 12 }
+    
+lsAthPHY OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+        "The number of reported tries."
+    ::= { lsEntry 13 }
+ 
+wmpIndex OBJECT-TYPE
+    SYNTAX      InterfaceIndex
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+        "A unique value, greater than zero, for each interface.  It is
+        recommended that values are assigned contiguously starting from 1.
+        The value for each interface sub-layer must remain constant at
+        least from one re-initialization of the entity's network management
+        system to the next re-initialization."
+    ::= { wmpDeviceStats 1 }
+    
+wmpTxCount OBJECT-TYPE
+    SYNTAX	Counter64
+    MAX-ACCESS	read-only
+    STATUS	current
+    DESCRIPTION
+	"The number of frames transmitted."
+    ::= { wmpDeviceStats 2 }
+
+wmpRxCount OBJECT-TYPE
+    SYNTAX	Counter64
+    MAX-ACCESS	read-only
+    STATUS	current
+    DESCRIPTION
+	"The number of frames received."
+    ::= { wmpDeviceStats 3 }
+
+
+wmpBssOnChan OBJECT-TYPE
+    SYNTAX	Gauge32
+    MAX-ACCESS	read-only
+    STATUS	current
+    DESCRIPTION
+	"The number of BSSs that are on the same channel as the base
+         device."
+    ::= { wmpDeviceStats 4 }
+
+
+wmpBssOffChan OBJECT-TYPE
+    SYNTAX	Gauge32
+    MAX-ACCESS	read-only
+    STATUS	current
+    DESCRIPTION
+	"The number of BSSs that are not on the same channel as the base
+	device."
+    ::= { wmpDeviceStats 5 }
+
+
+wmpBssUnkChan OBJECT-TYPE
+    SYNTAX	Gauge32
+    MAX-ACCESS	read-only
+    STATUS	current
+    DESCRIPTION
+	"The number of BSSs that can be heard but we cannot determine
+	the channel of."
+    ::= { wmpDeviceStats 6 }
+
+wmpStaOnChan OBJECT-TYPE
+    SYNTAX	Gauge32
+    MAX-ACCESS	read-only
+    STATUS	current
+    DESCRIPTION
+	" The number of stations that are on the same channel as the
+	base device."
+    ::= { wmpDeviceStats 7 }
+
+
+wmpStaOffChan OBJECT-TYPE
+    SYNTAX	Gauge32
+    MAX-ACCESS	read-only
+    STATUS	current
+    DESCRIPTION
+	" The number of station that are not on the same channel as the
+	base device." 
+    ::= { wmpDeviceStats 8 }
+
+
+wmpStaUnkChan OBJECT-TYPE
+    SYNTAX	Gauge32
+    MAX-ACCESS	read-only
+    STATUS	current
+    DESCRIPTION
+	" The number of stations that can be heard but we cannot
+	determine the channel of."
+    ::= { wmpDeviceStats 9 }
+
+
+wmpStaOnBss OBJECT-TYPE
+    SYNTAX	Gauge32
+    MAX-ACCESS	read-only
+    STATUS	current
+    DESCRIPTION
+	" The number of stations that are on the same BSS on the base
+	device."
+    ::= { wmpDeviceStats 10 }
+
+
+wmpStaOffBss OBJECT-TYPE
+    SYNTAX	Gauge32
+    MAX-ACCESS	read-only
+    STATUS	current
+    DESCRIPTION
+	" The number of stations that are not on the same BSS of the
+	base device."
+    ::= { wmpDeviceStats 11 }
+
+wmpTxOk OBJECT-TYPE
+    SYNTAX	Counter64
+    MAX-ACCESS	read-only
+    STATUS	current
+    DESCRIPTION
+	" The number of frames sucessfully transmitted."
+    ::= { wmpDeviceStats 12 }
+
+
+wmpTxRetransmits OBJECT-TYPE
+    SYNTAX	Counter64
+    MAX-ACCESS	read-only
+    STATUS	current
+    DESCRIPTION
+	" The number of frames retransmitted (OK + retransmits = total
+	frames on the air)"
+    ::= { wmpDeviceStats 13 }
+
+
+wmpRxOkOnBss OBJECT-TYPE
+    SYNTAX	Counter64
+    MAX-ACCESS	read-only
+    STATUS	current
+    DESCRIPTION
+	" The number of frames received on BSS."
+    ::= { wmpDeviceStats 14 }
+
+
+wmpRxOkOffBss OBJECT-TYPE
+    SYNTAX	Counter64
+    MAX-ACCESS	read-only
+    STATUS	current
+    DESCRIPTION
+	" The number of frames received off BSS."
+    ::= { wmpDeviceStats 15 }
+
+
+wmpRxOkLocal OBJECT-TYPE
+    SYNTAX	Counter64
+    MAX-ACCESS	read-only
+    STATUS	current
+    DESCRIPTION
+	" The number of frames received directed at a local station."
+    ::= { wmpDeviceStats 16 }
+
+
+wmpRxOkOther OBJECT-TYPE
+    SYNTAX	Counter64
+    MAX-ACCESS	read-only
+    STATUS	current
+    DESCRIPTION
+	" The number of frames received directed at a non-local
+	station."
+    ::= { wmpDeviceStats 17 }
+
+
+wmpRxOkBcast OBJECT-TYPE
+    SYNTAX	Counter64
+    MAX-ACCESS	read-only
+    STATUS	current
+    DESCRIPTION
+	" The number of frames receiveed directed at the broadcast MAC
+	address."
+    ::= { wmpDeviceStats 18 }
+
+
+wmpRxOkOnChan OBJECT-TYPE
+    SYNTAX	Counter64
+    MAX-ACCESS	read-only
+    STATUS	current
+    DESCRIPTION
+	" The number of frames received that were transmitted on the
+	channel of the base device. "
+    ::= { wmpDeviceStats 19 }
+
+wmpRxOkOffChan OBJECT-TYPE
+    SYNTAX	Counter64
+    MAX-ACCESS	read-only
+    STATUS	current
+    DESCRIPTION
+	" The number of frames received that were transmitted on a
+	channel other than that of the base device. "
+    ::= { wmpDeviceStats 20 }
+
+
+wmpRxOkUnkChan OBJECT-TYPE
+    SYNTAX	Counter64
+    MAX-ACCESS	read-only
+    STATUS	current
+    DESCRIPTION
+	" The number of frames received where we are unable to determine
+	the channel they were transmitted on. "
+    ::= { wmpDeviceStats 21 }
+
+wmpRxErrors OBJECT-TYPE
+    SYNTAX	Counter64
+    MAX-ACCESS	read-only
+    STATUS	current
+    DESCRIPTION
+	" The number of frames received with the RX Error bit set."
+    ::= { wmpDeviceStats 22 }
+
+
+wmpTxTimeOk OBJECT-TYPE
+    SYNTAX	Counter64
+    MAX-ACCESS	read-only
+    STATUS	current
+    DESCRIPTION
+	" Time spent on sucessfully transmitted frames (microseconds)."
+    ::= { wmpDeviceStats 23 }
+
+
+wmpTxTimeRetransmits OBJECT-TYPE
+    SYNTAX	Counter64
+    MAX-ACCESS	read-only
+    STATUS	current
+    DESCRIPTION
+	" Time spent on retransmitted frames (microseconds)."
+    ::= { wmpDeviceStats 24 }
+
+
+wmpRxTimeOkOnBss OBJECT-TYPE
+    SYNTAX	Counter64
+    MAX-ACCESS	read-only
+    STATUS	current
+    DESCRIPTION
+	" Time spent receiving frames on BSS (microseconds)."
+    ::= { wmpDeviceStats 25 }
+
+
+wmpRxTimeOkOffBss OBJECT-TYPE
+    SYNTAX	Counter64
+    MAX-ACCESS	read-only
+    STATUS	current
+    DESCRIPTION
+	" Time spent receiving frames off BSS (microseconds)."
+    ::= { wmpDeviceStats 26 }
+
+
+wmpRxTimeOkLocal OBJECT-TYPE
+    SYNTAX	Counter64
+    MAX-ACCESS	read-only
+    STATUS	current
+    DESCRIPTION
+	" Time spent receiving frames directed at local stations
+	(microseconds)."
+    ::= { wmpDeviceStats 27 }
+
+
+wmpRxTimeOkOther OBJECT-TYPE
+    SYNTAX	Counter64
+    MAX-ACCESS	read-only
+    STATUS	current
+    DESCRIPTION
+	" Time spent receiving frames directed at non-local stations
+	(microseconds)."
+    ::= { wmpDeviceStats 28 }
+
+
+wmpRxTimeOkBcast OBJECT-TYPE
+    SYNTAX	Counter64
+    MAX-ACCESS	read-only
+    STATUS	current
+    DESCRIPTION
+	" Time spent receiving frames directed at the broadcast MAC
+	address (microseconds)."
+    ::= { wmpDeviceStats 29 }
+
+
+wmpRxTimeOkOnChan OBJECT-TYPE
+    SYNTAX	Counter64
+    MAX-ACCESS	read-only
+    STATUS	current
+    DESCRIPTION
+	" Time spent receiving frames transmitted on the channel of the
+	base device. "
+    ::= { wmpDeviceStats 30 }
+
+wmpRxTimeOkOffChan OBJECT-TYPE
+    SYNTAX	Counter64
+    MAX-ACCESS	read-only
+    STATUS	current
+    DESCRIPTION
+	" Time spent receiving frames transmitted on a channel other
+	than that of the base device. "
+    ::= { wmpDeviceStats 31 }
+
+wmpRxTimeOkUnkChan OBJECT-TYPE
+    SYNTAX	Counter64
+    MAX-ACCESS	read-only
+    STATUS	current
+    DESCRIPTION
+	" Time spent receiving frames transmitted where we are unable to
+	determine the channel. "
+    ::= { wmpDeviceStats 32 }
+
+wmpRxTimeErrors OBJECT-TYPE
+    SYNTAX	Counter64
+    MAX-ACCESS	read-only
+    STATUS	current
+    DESCRIPTION
+	" Time spent receiving frames with the RX error bit set. Note
+	that this is an approximation based on the length of the decoded packet,
+	so if the channel was busy with errors but the packet was unable to be
+	decoded it will not be counted."
+    ::= { wmpDeviceStats 33 }
+
+ifName  OBJECT-TYPE
+    SYNTAX      DisplayString
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Interface Name"
+    ::= { wireless 1 }
+
+ifMode  OBJECT-TYPE
+    SYNTAX      DisplayString
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Interface Mode"
+    ::= { wireless 2 }
+
+ifChannel  OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Interface Channel"
+    ::= { wireless 3 }
+
+ifESSID  OBJECT-TYPE
+    SYNTAX      DisplayString
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Interface ESSID"
+    ::= { wireless 4 }
+
+ifHW  OBJECT-TYPE
+    SYNTAX      OCTET STRING
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Interface Hardware Address"
+    ::= { wireless 5 }
+
+ifClients  OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Interface number of associated clients"
+    ::= { wireless 6 }
+
+clientsIF  OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Interface client is associated too"
+    ::= { clients 1 }
+
+clientsHW  OBJECT-TYPE
+    SYNTAX      OCTET STRING
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Client hardware address"
+    ::= { clients 2 }
+
+clientsSNR  OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Client SNR"
+    ::= { clients 3 }
+
+clientsLRX  OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Milliseconds since we last heard a frame"
+    ::= { clients 4 }
+---
+--- Tristar / Solar Stuff
+---
+battVoltage  OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Battery Voltage, filtered (Tau=2.5s)."
+    ::= { tristar45 1 }
+    
+battsenseVoltage  OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Battery Sense Voltage, filtered (Tau=2.5s)."
+    ::= { tristar45 2 }
+    
+arrayVoltage  OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Array/Load voltage, filtered (Tau=2.5s)."
+    ::= { tristar45 3 }
+    
+chargeCurrent  OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Battery charge current, filtered (Tau=2.5s)"
+    ::= { tristar45 4 }    
+    
+loadCurrent  OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Load current, filtered (Tau=2.5s)"
+    ::= { tristar45 5 }
+    
+battVoltageSlow  OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Battery voltage, slow filter (Tau=25s)"
+    ::= { tristar45 6 }
+    
+hstemp  OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Heatsink temperature (Degrees)"
+    ::= { tristar45 7 }
+    
+battemp  OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Battery temperature (Degrees)"
+    ::= { tristar45 8 }
+    
+refVoltage  OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Charge regulator reference voltage"
+    ::= { tristar45 9 }
+    
+amphrAH  OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Ah resetable"
+    ::= { tristar45 10 }
+    
+totalamphrAH  OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Ah total"
+    ::= { tristar45 11 }
+
+hrmeter OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Hourmeter"
+    ::= { tristar45 12 }
+
+controlmode OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Control mode (0=charge, 1=load, 2=diversion)"
+    ::= { tristar45 13 }
+
+controlstate OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Control state"
+    ::= { tristar45 14 }
+
+pwmdut OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "PWM Duty Cycle - 0-255"
+    ::= { tristar45 15 }
+
+dslequ OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Days since last equalize"
+    ::= { tristar45 16 }
+
+dslbs OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Days since last battery service"
+    ::= { tristar45 17 }
+
+kwh OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Kilowatt hours"
+    ::= { tristar45 18 }
+
+minbv OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Minimum battery voltage"
+    ::= { tristar45 19 }
+
+maxbv OBJECT-TYPE
+    SYNTAX      Integer32
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Maximum battery voltage"
+    ::= { tristar45 20 }
+
+serial OBJECT-TYPE
+    SYNTAX      DisplayString
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Serial No"
+    ::= { tristar45 21 }
+
+hwver OBJECT-TYPE
+    SYNTAX      DisplayString
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "MSB: H/W Version major, LSB: H/W Version minor"
+    ::= { tristar45 22 }
+    
+alarm	OBJECT IDENTIFIER ::= { tristar45 23 }
+
+rtsopenAlarm OBJECT-TYPE
+    SYNTAX      INTEGER (0..1)
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "RTS Open Alarm"
+    ::= { alarm 1 }
+
+rtsshortAlarm OBJECT-TYPE
+    SYNTAX      INTEGER (0..1)
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "RTS Short Alarm"
+    ::= { alarm 2 }
+
+rtsdisconAlarm OBJECT-TYPE
+    SYNTAX      INTEGER (0..1)
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "RTS Disconnected"
+    ::= { alarm 3 }
+
+thsdisconAlarm OBJECT-TYPE
+    SYNTAX      INTEGER (0..1)
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "THS Disconnected"
+    ::= { alarm 4 }
+
+thsshortAlarm OBJECT-TYPE
+    SYNTAX      INTEGER (0..1)
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "THS Shorted"
+    ::= { alarm 5 }
+
+hotAlarm OBJECT-TYPE
+    SYNTAX      INTEGER (0..1)
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Tristar Hot"
+    ::= { alarm 6 }
+
+curlimitAlarm OBJECT-TYPE
+    SYNTAX      INTEGER (0..1)
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Current Limit"
+    ::= { alarm 7 }
+
+curoffsetAlarm OBJECT-TYPE
+    SYNTAX      INTEGER (0..1)
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Current Offset"
+    ::= { alarm 8 }
+
+batsenseAlarm OBJECT-TYPE
+    SYNTAX      INTEGER (0..1)
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Battery Sense"
+    ::= { alarm 9 }
+
+batdiscAlarm OBJECT-TYPE
+    SYNTAX      INTEGER (0..1)
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Battery Disconnected"
+    ::= { alarm 10 }
+
+uncalibratedAlarm OBJECT-TYPE
+    SYNTAX      INTEGER (0..1)
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Uncalibrated"
+    ::= { alarm 11 }
+
+rtsmwireAlarm OBJECT-TYPE
+    SYNTAX      INTEGER (0..1)
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "RTS Miswire"
+    ::= { alarm 12 }
+
+hvdAlarm OBJECT-TYPE
+    SYNTAX      INTEGER (0..1)
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "HVD"
+    ::= { alarm 13 }
+
+highdAlarm OBJECT-TYPE
+    SYNTAX      INTEGER (0..1)
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "High D"
+    ::= { alarm 14 }
+
+miswireAlarm OBJECT-TYPE
+    SYNTAX      INTEGER (0..1)
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Miswire"
+    ::= { alarm 15 }
+
+fetopenAlarm OBJECT-TYPE
+    SYNTAX      INTEGER (0..1)
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "FET Open"
+    ::= { alarm 16 }
+    
+fault	OBJECT IDENTIFIER ::= { tristar45 24 }
+
+extshortFault OBJECT-TYPE
+    SYNTAX      INTEGER (0..1)
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "External Short"
+    ::= { fault 1 }
+
+overcurFault OBJECT-TYPE
+    SYNTAX      INTEGER (0..1)
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Overcurrent"
+    ::= { fault 2 }
+
+fetshortFault OBJECT-TYPE
+    SYNTAX      INTEGER (0..1)
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "FET Short"
+    ::= { fault 3 }
+
+softwareFault OBJECT-TYPE
+    SYNTAX      INTEGER (0..1)
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Software"
+    ::= { fault 4 }
+
+hvdFault OBJECT-TYPE
+    SYNTAX      INTEGER (0..1)
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "HVD"
+    ::= { fault 5 }
+
+hotFault OBJECT-TYPE
+    SYNTAX      INTEGER (0..1)
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Tristar Hot"
+    ::= { fault 6 }
+
+dipswFault OBJECT-TYPE
+    SYNTAX      INTEGER (0..1)
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Dip SW Changed"
+    ::= { fault 7 }
+
+settingFault OBJECT-TYPE
+    SYNTAX      INTEGER (0..1)
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Setting Change"
+    ::= { fault 8 }
+
+resetFault OBJECT-TYPE
+    SYNTAX      INTEGER (0..1)
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Reset"
+    ::= { fault 9 }
+
+miswireFault OBJECT-TYPE
+    SYNTAX      INTEGER (0..1)
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Miswire"
+    ::= { fault 10 }
+
+rtsshortFault OBJECT-TYPE
+    SYNTAX      INTEGER (0..1)
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "RTS Shorted"
+    ::= { fault 11 }
+
+rtsdisFault OBJECT-TYPE
+    SYNTAX      INTEGER (0..1)
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "RTS Disconnected"
+    ::= { fault 12 }
+
+fault12Fault OBJECT-TYPE
+    SYNTAX      INTEGER (0..1)
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Fault  12"
+    ::= { fault 13 }
+
+fault13Fault OBJECT-TYPE
+    SYNTAX      INTEGER (0..1)
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Fault 13"
+    ::= { fault 14 }
+
+fault14Fault OBJECT-TYPE
+    SYNTAX      INTEGER (0..1)
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Fault 14"
+    ::= { fault 15 }
+
+fault15Fault OBJECT-TYPE
+    SYNTAX      INTEGER (0..1)
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "Fault 15"
+    ::= { fault 16 }
+
+dipswitchFault OBJECT-TYPE
+    SYNTAX Integer32
+    MAX-ACCESS read-only
+    STATUS current
+    DESCRIPTION
+            "Startup DIP Switch Settings"
+    ::= { tristar45 25 }
+
+---
+--- Host Status Information
+---
+ccsRevision  OBJECT-TYPE
+    SYNTAX      DisplayString
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+            "CRCnet Configuration System - Configuration File Revision"
+    ::= { hostInfo 1 }
+
+-- end of CRCNET-MIB
+--
+END

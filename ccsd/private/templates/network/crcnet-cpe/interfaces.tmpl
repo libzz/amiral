@@ -1,0 +1,47 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+This template creates the interface configuration file
+*#
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+##
+## Real template output starts below here
+##
+#
+# CRCnet CPE Interface Configuration
+#
+# This file was automatically generated on the date below and is automatically
+# maintained by crcnet-monitor. DO NOT EDIT
+# \$Date$
+
+auto lo
+iface lo inet loopback
+
+auto int
+iface int inet static
+    address 192.168.0.254
+    netmask 255.255.255.0
+    network 192.168.0.0
+    broadcast 192.168.0.255
+
+auto bhaul
+iface bhaul inet dhcp
+    madwifi_base vbase-bhaul
+    madwifi_distance 20000
+    wireless_standard g
+    wpa-driver madwifi
+    wpa-ssid default
+    wpa-identity default
+    wpa-password default
+    wpa-client-cert /etc/ccsd/cert.pem
+    wpa-private-key /etc/ccsd/key.pem
+    wpa-key-mgmt WPA-EAP
+    wpa-eap TTLS
+    wpa-priority 2
+    wpa-phase2 auth=PAP

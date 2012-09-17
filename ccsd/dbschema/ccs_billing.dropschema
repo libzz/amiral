@@ -1,0 +1,26 @@
+-- 
+-- PostgreSQL drop schema for CRCnet Configuration Systems billing module
+--
+-- Author:  Ivan Meredith <ijm1@cs.waikato.ac.nz>
+--          Matt Brown  <matt@crc.net.nz>
+-- Version:  $Id$
+--
+
+DROP VIEW customers;
+DROP VIEW non_invoiced_billing_records;
+DROP VIEW rollover;
+DROP VIEW plans;
+
+DROP TABLE billing_invoice CASCADE;
+DROP TABLE billing_record CASCADE;
+DROP TABLE customer_state CASCADE;
+DROP TABLE customer_account CASCADE;
+DROP TABLE billing_plan CASCADE;
+DROP TABLE radius_plan CASCADE;
+
+SELECT start_changeset('removing ccs_billing module');
+DELETE FROM contact WHERE type='customer';
+DELETE FROM contact_type WHERE contact_type_name='customer';
+SELECT end_changeset();
+
+-- vim: ft=sql

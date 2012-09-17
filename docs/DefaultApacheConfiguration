@@ -1,0 +1,50 @@
+    Replace <server-ip> with the address of your server
+    Replace <ccsweb_base> with the directory you untarred ccsweb into
+    Replace <servername> with the DNS name of your server (eg. admin.example.com)
+
+    <VirtualHost <server-ip>:443>
+            SSLEngine on
+            ServerAdmin webmaster@localdomain
+            DocumentRoot <ccsweb_base>/html/
+            ServerName <servername>
+            ErrorLog <ccsweb_base>/logs/error.log
+            CustomLog <ccsweb_base>/logs/caccess.log combined
+
+            Alias /img/ <ccsweb_base>/html-aliases/img/
+            Alias /certs/ <ccsweb_base>/html-aliases/certs/
+            Alias /mods/ <ccsweb_base>/ccs_mods/
+
+            # Modify this to suit your security requirements
+            # The default configuration shown below will allow
+            # access from a trusted network without a password
+            # or from anywhere with a password.
+            #
+            # NOTE: This is only for HTTP access to the interface
+            # it does not replace the Configuration System's 
+            # own authentication system.
+            <Location />
+                    Order deny,allow
+                    Deny from all
+                    allow from <trusted_network>/24
+                    AuthName "Network Administration"
+                    AuthType Basic
+                    # You will need to create this file with htpasswd
+                    AuthUserFile <ccsweb_base>/auth/ccsweb.passwd
+                    require valid-user
+                    Satisfy any
+            </Location>
+
+            php_value include_path ".:/usr/share/php:<ccsweb_base>/html:<ccsweb_base>/ccs_mods"
+    </VirtualHost>
+
+    # Ensure this host is only ever accessed via SSL
+    <VirtualHost *>
+            ServerAdmin webmaster@localdomain
+            DocumentRoot <ccsweb_base>/html/
+            ServerName <servername>
+            ErrorLog <ccsweb_base>/logs/error.log
+            CustomLog <ccsweb_base>/logs/caccess.log combined
+
+            RedirectPermanent / https://<servername>/
+    </VirtualHost>
+

@@ -1,0 +1,178 @@
+-- 
+-- PostgreSQL drop schema for CRCnet configuration system database
+--
+-- CAUTION: This schema is used to completely obliterate the database and
+-- bring it back to a clean database shell. 
+--
+-- RUNNING THIS WILL LOSE ALL YOUR DATA.
+--
+-- The ordering of DROP / CREATE commands is crucial
+-- The DROP commands must be in reverse order to the CREATE order to
+-- ensure tables that depend on others are dropped first
+--
+-- Author:   Matt Brown  <matt@crc.net.nz>
+-- Version:  $Id$
+--
+-- This file is a part of crcnetd, licensed under the GPLv2
+
+-- Drop everything
+DROP SEQUENCE uid_seq;
+DROP SEQUENCE gid_seq;
+
+DROP VIEW relid_pkeys CASCADE;
+DROP VIEW table_pkeys CASCADE;
+DROP VIEW asset_list CASCADE;
+DROP VIEW subasset_properties CASCADE;
+DROP VIEW site_assets CASCADE;
+DROP VIEW site_hosts CASCADE;
+DROP VIEW site_detail CASCADE;
+DROP VIEW site_host_assets_avail CASCADE;
+DROP VIEW assets_avail CASCADE;
+DROP VIEW host_asset_interfaces CASCADE;
+DROP VIEW link_wireless_interfaces_avail CASCADE;
+DROP VIEW link_vap_interfaces_avail CASCADE;
+DROP VIEW link_interface_count CASCADE;
+DROP VIEW host_list CASCADE;
+DROP VIEW n_subasset_types_by_asset_type CASCADE;
+DROP VIEW n_assets_by_asset_type CASCADE;
+DROP VIEW table_columns CASCADE;
+DROP VIEW relid_columns CASCADE;
+
+DROP TRIGGER iface_subasset_check ON interface CASCADE;
+DROP FUNCTION is_attached(bigint, bigint) CASCADE;
+DROP FUNCTION iface_check() CASCADE;
+
+DROP TRIGGER interface_t ON interface CASCADE;
+DROP TABLE interface_history CASCADE;
+DROP TABLE interface CASCADE;
+
+DROP TRIGGER host_t ON host CASCADE;
+DROP TABLE host_history CASCADE;
+DROP TABLE host CASCADE;
+
+DROP TRIGGER link_t ON link CASCADE;
+DROP TABLE link_history CASCADE;
+DROP TABLE link CASCADE;
+
+DROP TRIGGER link_class_t ON link_class CASCADE;
+DROP TABLE link_class_history CASCADE;
+DROP TABLE link_class CASCADE;
+
+DROP TABLE mode_channels CASCADE;
+DROP TABLE link_mode CASCADE;
+DROP TABLE link_type CASCADE;
+
+DROP TRIGGER kernel_t ON kernel CASCADE;
+DROP TABLE kernel_history CASCADE;
+DROP TABLE kernel CASCADE;
+
+DROP TRIGGER module_map_t ON module_map CASCADE;
+DROP TABLE module_map_history CASCADE;
+DROP TABLE module_map CASCADE;
+
+DROP TRIGGER module_t ON module CASCADE;
+DROP TABLE module_history CASCADE;
+DROP TABLE module CASCADE;
+
+DROP TRIGGER distribution_t ON distribution CASCADE;
+DROP TABLE distribution_history CASCADE;
+DROP TABLE distribution CASCADE;
+
+DROP TABLE asset_event CASCADE;
+DROP TABLE event_type CASCADE;
+
+DROP TRIGGER asset_location_t ON asset_location CASCADE;
+DROP TABLE asset_location_history CASCADE;
+DROP TABLE asset_location CASCADE;
+
+DROP TRIGGER asset_stock_location_t ON asset_stock_location CASCADE;
+DROP TABLE asset_stock_location_history CASCADE;
+DROP TABLE asset_stock_location CASCADE;
+
+DROP TRIGGER asset_data_t ON asset_data CASCADE;
+DROP TABLE asset_data_history CASCADE;
+DROP TABLE asset_data CASCADE;
+
+DROP TRIGGER subasset_t ON subasset CASCADE;
+DROP TABLE subasset_history CASCADE;
+DROP TABLE subasset CASCADE;
+
+DROP TRIGGER asset_t ON asset CASCADE;
+DROP TABLE asset_history CASCADE;
+DROP TABLE asset CASCADE;
+
+DROP TRIGGER subasset_property_t ON subasset_property CASCADE;
+DROP TABLE subasset_property_history CASCADE;
+DROP TABLE subasset_property CASCADE;
+
+DROP TRIGGER asset_property_t ON asset_property CASCADE;
+DROP TABLE asset_property_history CASCADE;
+DROP TABLE asset_property CASCADE;
+
+DROP TRIGGER asset_type_subasset_t ON asset_type_subasset CASCADE;
+DROP TABLE asset_type_subasset_history CASCADE;
+DROP TABLE asset_type_subasset CASCADE;
+
+DROP TRIGGER subasset_type_t ON subasset_type CASCADE;
+DROP TABLE subasset_type_history CASCADE;
+DROP TABLE subasset_type CASCADE;
+DROP TABLE subasset_type_map CASCADE;
+
+DROP TRIGGER asset_type_t ON asset_type CASCADE;
+DROP TABLE asset_type_history CASCADE;
+DROP TABLE asset_type CASCADE;
+DROP TABLE asset_type_map CASCADE;
+
+DROP TRIGGER site_t ON site CASCADE;
+DROP TABLE site_history CASCADE;
+DROP TABLE site CASCADE;
+
+DROP TABLE cookies CASCADE;
+DROP TABLE sessions CASCADE;
+
+DROP TRIGGER group_membership_loop ON group_membership CASCADE;
+DROP FUNCTION gm_check_loop() CASCADE;
+DROP FUNCTION group_member(bigint, bigint) CASCADE;
+DROP TRIGGER group_membership_t ON group_membership CASCADE;
+DROP TABLE group_membership_history CASCADE;
+DROP TABLE group_membership CASCADE;
+
+DROP TRIGGER contact_group_t ON contact_group CASCADE;
+DROP TABLE contact_group_history CASCADE;
+DROP TABLE contact_group CASCADE;
+
+DROP TABLE first_login CASCADE;
+
+DROP TRIGGER contact_t ON contact CASCADE;
+DROP TABLE contact_history CASCADE;
+DROP TABLE contact CASCADE;
+
+DROP TABLE contact_types CASCADE;
+
+DROP TRIGGER service_t ON service CASCADE;
+DROP TABLE service CASCADE;
+DROP TABLE service_history CASCADE;
+
+DROP TRIGGER service_prop_t ON service_prop CASCADE;
+DROP TABLE service_prop CASCADE;
+DROP TABLE service_prop_history CASCADE;
+
+DROP TRIGGER service_host_t ON service_host CASCADE;
+DROP TABLE service_host CASCADE;
+DROP TABLE service_host_history CASCADE;
+
+DROP TRIGGER service_hostdata_t ON service_hostdata CASCADE;
+DROP TABLE service_hostdata CASCADE;
+DROP TABLE service_hostdata_history CASCADE;
+
+DROP TRIGGER service_data_t ON service_data CASCADE;
+DROP TABLE service_data CASCADE;
+DROP TABLE service_data_history CASCADE;
+
+DROP TRIGGER changeset_t ON changeset CASCADE;
+DROP FUNCTION check_changeset() CASCADE;
+DROP TABLE changeset CASCADE;
+
+DROP FUNCTION do_table_history() CASCADE;
+DROP FUNCTION start_changeset(varchar);
+DROP FUNCTION end_changeset();

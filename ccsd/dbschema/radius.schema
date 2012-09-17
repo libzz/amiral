@@ -1,0 +1,500 @@
+-- 
+-- PostgreSQL schema for Radius Service
+--
+-- The Radius module has a dependency on the ccs_billing module
+--
+-- Author:   Matt Brown  <matt@crc.net.nz>
+-- Version:  $Id$
+--
+
+-- RADIUS client table
+-- This lists APs (NASes) that are allowed to ask the radius server to
+-- authenticate users. This table isn't directly accessed by FreeRadius.
+-- Instead it is used to generate a configuration file that is pushed out
+-- to the RADIUS server.
+begin transaction;
+CREATE TABLE radius_client (
+    host_id     integer     NOT NULL REFERENCES host (host_id) 
+                                ON DELETE CASCADE,
+    secret      varchar(32) NOT NULL
+);
+CREATE VIEW radius_client_info AS 
+    SELECT h.host_id, h.host_name, h.ip_address, rc.secret FROM 
+    host h, radius_client rc WHERE h.host_id=rc.host_id;
+
+-- Setup RADIUS group mappings
+------------------------------------------------------------------------------
+
+-- Put customers into groups based on their connection type
+CREATE VIEW radius_customers_group_domain AS SELECT username || '@' || domain as username, 
+    lower(connection_method) || '_customers' AS groupname, 
+    0 AS priority FROM v_customers;
+    
+CREATE VIEW radius_customers_group AS SELECT username, 
+    lower(connection_method) || '_customers' AS groupname, 
+    0 AS priority FROM v_customers;
+
+-- Each customer also goes into a group named after the radius_plan that the
+-- state table currently places them on
+CREATE VIEW radius_plan_groups_domain AS SELECT c.username || '@' || c.domain as username, 
+    COALESCE(p.plan_name, 'default') AS groupname,
+    0 AS priority FROM v_customers c LEFT JOIN broadband_account s ON 
+    c.login_id=s.login_id LEFT JOIN radius_plan p ON 
+    s.radius_plan=p.plan_id;
+CREATE VIEW radius_plan_groups AS SELECT c.username, 
+    COALESCE(p.plan_name, 'default') AS groupname,
+    0 AS priority FROM v_customers c LEFT JOIN broadband_account s ON 
+    c.login_id=s.login_id LEFT JOIN radius_plan p ON 
+    s.radius_plan=p.plan_id;
+
+-- Create a table where additional group entries can be added
+CREATE TABLE radius_extra_groups (
+    UserName        VARCHAR(64) NOT NULL DEFAULT '',
+    GroupName       VARCHAR(64) NOT NULL DEFAULT '',
+    priority        INTEGER NOT NULL DEFAULT 0
+);
+
+-- Create a view which combines the three previous items together to form the
+-- radius_groups table
+CREATE VIEW radius_groups AS
+    SELECT * FROM radius_customers_group UNION
+    SELECT * FROM radius_customers_group_domain UNION
+    SELECT * FROM radius_plan_groups UNION
+    SELECT * FROM radius_plan_groups_domain UNION
+    SELECT * FROM radius_extra_groups;
+
+-- Setup components for the RADIUS check tables, used for authentication
+------------------------------------------------------------------------------
+
+-- Setup a password record for each customer that is not using a non
+-- authenticated connection method (currently only ethernet)
+CREATE VIEW radius_passwd AS SELECT login_id AS id, username, 
+    'Crypt-Password' AS attribute, '==' AS op, passwd AS value 
+    FROM v_customers WHERE lower(connection_method)!='ethernet';
+CREATE VIEW radius_passwd_domain AS SELECT login_id AS id, username || '@' || domain as username, 
+    'Crypt-Password' AS attribute, '==' AS op, passwd AS value 
+    FROM v_customers WHERE lower(connection_method)!='ethernet';
+
+-- Setup a check record for ethernet customers connecting via interfaces that
+-- don't need authentication (eg. ethernet)
+CREATE VIEW radius_interface_check AS SELECT login_id as id, username,
+    'Called-Station-ID' AS attribute, '==' AS op, interface_mac AS value
+    FROM customer_interfaces UNION SELECT login_id as id, username,
+    'Auth-Type' as attribute, ':=' as op, 'Accept' as value FROM 
+    customer_interfaces;
+CREATE VIEW radius_interface_check_domain AS SELECT login_id as id,  username || '@' || domain as username,
+    'Called-Station-ID' AS attribute, '==' AS op, interface_mac AS value
+    FROM customer_interfaces UNION SELECT login_id as id,  username || '@' || domain as username,
+    'Auth-Type' as attribute, ':=' as op, 'Accept' as value FROM 
+    customer_interfaces;
+-- Create a table where additional check attributes should be added to
+CREATE TABLE radius_check_extra (
+    id              SERIAL PRIMARY KEY,
+    UserName        VARCHAR(64) NOT NULL DEFAULT '',
+    Attribute       VARCHAR(64) NOT NULL DEFAULT '',
+    op              VARCHAR(2) NOT NULL DEFAULT '==',
+    Value           VARCHAR(253) NOT NULL DEFAULT ''
+);
+
+-- Create a view which combines passwords and user specific check attributes
+CREATE VIEW radius_check AS 
+    SELECT * FROM radius_check_extra UNION 
+    SELECT * FROM radius_passwd_domain UNION
+    SELECT * FROM radius_interface_check_domain;
+
+CREATE VIEW radius_passwd_chap AS SELECT c.login_id AS id, c.username, 
+    'User-Password' AS attribute, '==' AS op, s.passwd AS value 
+    FROM v_customers c, logins_shadow s WHERE s.login_id = c.login_id AND lower(c.connection_method)!='ethernet';
+CREATE VIEW radius_passwd_domain_chap AS SELECT c.login_id AS id, c.username || '@' || c.domain as username, 
+    'User-Password' AS attribute, '==' AS op, s.passwd AS value 
+    FROM v_customers c, logins_shadow s WHERE s.login_id = c.login_id AND lower(c.connection_method)!='ethernet' AND c.enabled = 1;
+
+-- Create a view which combines passwords and user specific check attributes
+CREATE VIEW radius_check_chap AS 
+    SELECT * FROM radius_check_extra UNION 
+    SELECT * FROM radius_passwd_domain_chap;
+
+-- Setup the group check table
+CREATE TABLE radius_groupcheck (
+    id              SERIAL PRIMARY KEY,
+    GroupName       VARCHAR(64) NOT NULL DEFAULT '',
+    Attribute       VARCHAR(64) NOT NULL DEFAULT '',
+    op              VARCHAR(2) NOT NULL DEFAULT '==',
+    Value           VARCHAR(253) NOT NULL DEFAULT ''
+);
+CREATE INDEX radgroupcheck_GroupName ON radius_groupcheck (GroupName,Attribute);
+
+-- Add a default check on the wireless customers group for a client certificate
+INSERT INTO radius_groupcheck VALUES (DEFAULT, 'wireless_customers', 
+    'EAP-TLS-Require-Client-Cert', ':=', 'yes');
+
+-- Setup components for the RADIUS reply tables
+------------------------------------------------------------------------------
+
+-- The standard reply table for user specific reply attributes
+CREATE VIEW radius_reply as SELECT v.login_id AS id, 
+    (v.username::text || '@'::text) || v.domain::text AS username,
+    'Framed-IP-Address' AS attribute, '=' AS op, s.ip_address AS value
+    FROM v_customers v LEFT JOIN static_pool s ON s.login_id = v.login_id
+    WHERE s.ip_address IS NOT NULL;
+
+--CREATE TABLE radius_reply (
+--    id              SERIAL PRIMARY KEY,
+--    UserName        VARCHAR(64) NOT NULL DEFAULT '',
+--    Attribute       VARCHAR(64) NOT NULL DEFAULT '',
+--    op              VARCHAR(2) NOT NULL DEFAULT '=',
+--    Value           VARCHAR(253) NOT NULL DEFAULT ''
+--);
+
+-- Create a groupreply entry for each radius plan group that sets the 'Class'
+-- attribute to the name of the plan
+CREATE VIEW radius_groupreply_plan AS SELECT p.plan_id AS ID, 
+    p.plan_name AS groupname, 'Class' AS attribute, '=' AS op, 
+    p.plan_name AS Value FROM radius_plan p;
+    
+-- Create a groupreply entry for each radius plan group that sets the ratelimiting
+-- for the lns
+CREATE VIEW radius_groupreply_limitin AS SELECT p.plan_id AS ID, 
+    p.plan_name AS groupname, 'Cisco-AVPair' AS attribute, '+=' AS op, 
+    'lcp:interface-config#1=service-policy input ' || p.upstream_kbps
+    AS Value FROM radius_plan p;
+
+CREATE VIEW radius_groupreply_limitout AS SELECT p.plan_id AS ID, 
+    p.plan_name AS groupname, 'Cisco-AVPair' AS attribute, '+=' AS op, 
+    'lcp:interface-config#2=service-policy output ' || p.downstream_kbps
+    AS Value FROM radius_plan p;
+
+-- Create a groupreply entry for each connection type group to ask the NAS to
+-- send Interim-Updates every 5 minutes
+CREATE VIEW radius_groupreply_connection_methods AS 
+    SELECT DISTINCT 0::int AS id, 
+    lower(connection_method) || '_customers' AS GroupName, 
+    'Acct-Interim-Interval' AS attribute, '=' AS op, 
+    '300' AS value FROM v_customers;
+
+-- Create a table where additional group reply attributes can be added 
+CREATE TABLE radius_groupreply_extra (
+    id              SERIAL PRIMARY KEY,
+    GroupName       VARCHAR(64) NOT NULL DEFAULT '',
+    Attribute       VARCHAR(64) NOT NULL DEFAULT '',
+    op              VARCHAR(2) NOT NULL DEFAULT '=',
+    Value           VARCHAR(253) NOT NULL DEFAULT ''
+);
+
+-- Create a view which combines the previous items together to form the
+-- radius_groupreply table
+CREATE VIEW radius_groupreply AS
+    SELECT * FROM radius_groupreply_plan UNION 
+    SELECT * FROM radius_groupreply_connection_methods UNION 
+    SELECT * FROM radius_groupreply_limitin UNION 
+    SELECT * FROM radius_groupreply_limitout UNION 
+    SELECT * FROM radius_groupreply_extra;
+
+-- RADIUS accounting tables
+------------------------------------------------------------------------------
+-- Primary RADIUS accounting table. All session start and stop packets are logged
+-- into this table. Interim updates go to the _traffic table. So the Octet counts
+-- In this table won't be updated until the session ends, and may span several
+-- billing periods.
+CREATE TABLE radius_session (
+    RadAcctId               BIGSERIAL PRIMARY KEY,
+    AcctSessionId           VARCHAR(32) NOT NULL,
+    AcctUniqueId            VARCHAR(32) NOT NULL,
+    UserName                VARCHAR(253),
+    Realm                   VARCHAR(64),
+    NASIPAddress            INET NOT NULL,
+    NASPortId               VARCHAR(15),
+    NASPortType             VARCHAR(32),
+    AcctStartTime           TIMESTAMP with time zone,
+    AcctStopTime            TIMESTAMP with time zone,
+    AcctSessionTime         BIGINT,
+    AcctAuthentic           VARCHAR(32),
+    ConnectInfo_start       VARCHAR(50),
+    ConnectInfo_stop        VARCHAR(50),
+    AcctInputOctets         BIGINT,
+    AcctOutputOctets        BIGINT,
+    CalledStationId         VARCHAR(50),
+    CallingStationId        VARCHAR(50),
+    AcctTerminateCause      VARCHAR(32),
+    ServiceType             VARCHAR(32),
+    FramedProtocol          VARCHAR(32),
+    FramedIPAddress         INET,
+    AcctStartDelay          BIGINT,
+    AcctStopDelay           BIGINT,
+    XAscendSessionSvrKey    VARCHAR(10)
+);
+CREATE INDEX radacct_active_user_idx ON radius_session 
+    (UserName, NASIPAddress, AcctSessionId) WHERE AcctStopTime IS NULL;
+CREATE INDEX radacct_start_user_idx ON radius_session (AcctStartTime, UserName);
+CREATE INDEX radacct_stop_user_idx ON radius_session (acctStopTime, UserName);
+
+-- Helper views to return only active or completed sessions
+CREATE VIEW radius_active_sessions AS SELECT * FROM radius_session WHERE
+    acctstoptime IS NULL;
+CREATE VIEW radius_completed_sessions AS SELECT * FROM radius_session WHERE
+    acctstoptime IS NOT NULL;
+
+-- Helper views to return 'smaller' views of the session table that will fit  
+-- on one screen
+CREATE VIEW radius_session_short AS SELECT acctsessionid, username AS usern, 
+    nasipaddress AS nasip, 
+    to_char(acctstarttime, 'DD Mon YYYY HH24:MI:SS') AS start, 
+    to_char(acctstoptime, 'DD Mon YYYY HH24:MI:SS') AS stop, 
+    acctinputoctets AS inbytes, acctoutputoctets AS outbytes, 
+    calledstationid, callingstationid, acctterminatecause AS termcause FROM
+    radius_session ORDER BY acctstoptime, acctstarttime;
+CREATE VIEW radius_active_sessions_short AS SELECT acctsessionid, 
+    username AS usern, nasipaddress AS nasip, 
+    to_char(acctstarttime, 'DD Mon YYYY HH24:MI:SS') AS start, 
+    to_char(acctstoptime, 'DD Mon YYYY HH24:MI:SS') AS stop, 
+    acctinputoctets AS inbytes, acctoutputoctets AS outbytes, 
+    calledstationid, callingstationid, acctterminatecause AS termcause FROM
+    radius_active_sessions ORDER BY acctstarttime;
+CREATE VIEW radius_completed_sessions_short AS SELECT acctsessionid, 
+    username AS usern, nasipaddress AS nasip, 
+    to_char(acctstarttime, 'DD Mon YYYY HH24:MI:SS') AS start, 
+    to_char(acctstoptime, 'DD Mon YYYY HH24:MI:SS') AS stop, 
+    acctinputoctets AS inbytes, acctoutputoctets AS outbytes, 
+    calledstationid, callingstationid, acctterminatecause AS termcause FROM
+    radius_completed_sessions ORDER BY acctstoptime, acctstarttime;
+
+-- Function to start a new accounting session
+CREATE FUNCTION start_radius_session(varchar, varchar, varchar, varchar, inet,
+    varchar, varchar, varchar, varchar, varchar, varchar, varchar, varchar,
+    inet, bigint) RETURNS BOOLEAN AS '
+DECLARE
+    tAcctSessionId ALIAS FOR $1;
+    tAcctUniqueId ALIAS FOR $2;
+    tUserName ALIAS FOR $3;
+    tRealm ALIAS FOR $4;
+    tNASIPAddress ALIAS FOR $5;
+    tNASPortId ALIAS FOR $6;
+    tNASPortType ALIAS FOR $7;
+    tAcctAuthentic ALIAS FOR $8;
+    tConnectInfo_start ALIAS FOR $9;
+    tCalledStationId ALIAS FOR $10;
+    tCallingStationId ALIAS FOR $11;
+    tServiceType ALIAS FOR $12;
+    tFramedProtocol ALIAS FOR $13;
+    tFramedIPAddress ALIAS FOR $14;
+    tAcctStartDelay ALIAS FOR $15;
+    newsession RECORD;
+BEGIN
+    INSERT INTO radius_session (AcctSessionId, AcctUniqueId, UserName, Realm,
+        NASIPAddress, NASPortId, NASPortType, AcctStartTime, AcctAuthentic,
+        ConnectInfo_start, AcctInputOctets, AcctOutputOctets, CalledStationId,
+        CallingStationId, ServiceType, FramedProtocol, FramedIPAddress, 
+        AcctStartDelay) VALUES (tAcctSessionId, tAcctUniqueId, tUserName, 
+        tRealm, tNASIPAddress, tNASPortId, tNASPortType, NOW(), 
+        tAcctAuthentic, tConnectInfo_start, 0, 0, tCalledStationId, 
+        tCallingStationId, tServiceType, tFramedProtocol, tFramedIPAddress,
+        tAcctStartDelay);
+    SELECT INTO newsession * FROM radius_session WHERE 
+        AcctSessionId=tAcctSessionID AND UserName=tUserName AND 
+        NASIPAddress=tNASIPAddress;
+    INSERT INTO radius_traffic (RadAcctId, AcctTime, AcctInputOctets, 
+        AcctOutputOctets, MsgType) VALUES
+        (newsession.RadAcctId, NOW(), 0, 0, ''start'');
+    RETURN TRUE;
+END;
+' LANGUAGE plpgsql;
+
+-- Function to process a RADIUS interim update message
+-- Note that in the middle of this we check that in and out
+-- is equal to 2^32. This is a hack check for hostap bug
+-- and should be removed when the bug is fixed
+CREATE FUNCTION update_radius_session(varchar, varchar, inet, bigint, 
+    bigint, varchar) RETURNS BOOLEAN AS '
+DECLARE
+    tAcctSessionId ALIAS FOR $1;
+    tUserName ALIAS FOR $2;
+    tNASIPAddress ALIAS FOR $3;
+    tAcctInputOctets ALIAS FOR $4;
+    tAcctOutputOctets ALIAS FOR $5;
+    tMsgType ALIAS FOR $6;
+    csession RECORD;
+    input BIGINT;
+    output BIGINT;
+    uAcctInputOctets BIGINT;
+    uAcctOutputOctets BIGINT;
+BEGIN
+    SELECT INTO csession * FROM radius_session WHERE 
+        AcctSessionId=tAcctSessionID AND UserName=tUserName AND 
+        NASIPAddress=tNASIPAddress;
+    uAcctInputOctets := tAcctInputOctets;
+    uAcctOutputOctets := tAcctOutputOctets;
+    IF tAcctInputOctets = 4294967296 or tAcctOutputOctets  = 4294967296 THEN
+        uAcctInputOctets := csession.AcctInputOctets;
+        uAcctOutputOctets := csession.AcctOutputOctets;
+    END IF;
+    input := uAcctInputOctets - csession.AcctInputOctets;
+    output := uAcctOutputOctets - csession.AcctOutputOctets;
+    IF input < 0 THEN input := 0; END IF;
+    IF output < 0 THEN output := 0; END IF;
+    INSERT INTO radius_traffic (RadAcctId, AcctTime, AcctInputOctets, 
+        AcctOutputOctets, MsgType) VALUES
+        (csession.RadAcctId, NOW(), input, output, tMsgType);
+    IF uAcctInputOctets > csession.AcctInputOctets THEN
+        input := uAcctInputOctets;
+    ELSE
+        input := csession.AcctInputOctets;
+    END IF;
+    IF uAcctOutputOctets > csession.AcctOutputOctets THEN
+        output := uAcctOutputOctets;
+    ELSE
+        output := csession.AcctOutputOctets;
+    END IF;
+    UPDATE radius_session SET AcctInputOctets=input, 
+        AcctOutputOctets=output WHERE AcctSessionId=tAcctSessionID 
+        AND UserName=tUserName AND NASIPAddress=tNASIPAddress;
+    RETURN TRUE;
+END;
+' LANGUAGE plpgsql;
+
+-- Function to close a RADIUS session
+CREATE FUNCTION stop_radius_session(varchar, varchar, inet, bigint, bigint, 
+    varchar, bigint, varchar)
+    RETURNS BOOLEAN AS '
+DECLARE
+    tAcctSessionId ALIAS FOR $1;
+    tUserName ALIAS FOR $2;
+    tNASIPAddress ALIAS FOR $3;
+    tAcctInputOctets ALIAS FOR $4;
+    tAcctOutputOctets ALIAS FOR $5;
+    tAcctTerminateCause ALIAS FOR $6;
+    tAcctStopDelay ALIAS FOR $7;
+    tConnectInfo_stop ALIAS FOR $8;
+    csession RECORD;
+    input BIGINT;
+    output BIGINT;
+BEGIN
+    PERFORM update_radius_session(tAcctSessionId, tUserName, tNASIPAddress, 
+        tAcctInputOctets, tAcctOutputOctets, ''stop'');
+    UPDATE radius_session SET AcctStopDelay=tAcctStopDelay,
+        AcctTerminateCause=tAcctTerminateCause, AcctStopTime=NOW(), 
+        ConnectInfo_stop=tConnectInfo_stop WHERE AcctSessionId=tAcctSessionID
+        AND UserName=tUserName AND NASIPAddress=tNASIPAddress;
+    RETURN TRUE;
+END;
+' LANGUAGE plpgsql;
+
+-- Create a table that RADIUS will store interim accounting updates into
+-- This table is used to determine how much traffic the user has done
+CREATE TABLE radius_traffic (
+    RadAcctId               BIGINT REFERENCES radius_session(RadAcctId) 
+                                ON DELETE CASCADE,
+    AcctTime                TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    AcctInputOctets         BIGINT,
+    AcctOutputOctets        BIGINT,
+    MsgType                 varchar(6) -- start, stop, update
+);
+
+-- View to retrieve raw traffic records by username or login_id
+CREATE VIEW radius_user_traffic AS SELECT s.radacctid, c.login_id, 
+    s.username, t.accttime, t.acctinputoctets, t.acctoutputoctets, 
+    t.msgtype FROM v_customers c, radius_session s, radius_traffic t 
+    WHERE c.username=s.username AND s.radacctid=t.radacctid 
+    ORDER BY radacctid, username, accttime;
+
+-- View to retrieve daily summary traffic records by username of login_id
+CREATE VIEW radius_user_daily_traffic AS SELECT login_id, username, 
+    date_part('year', accttime) AS year, date_part('month', accttime) AS month,
+    date_part('day', accttime) AS day, sum(acctinputoctets) AS acctinputoctets,
+    sum(acctoutputoctets) AS acctoutputoctets FROM radius_user_traffic
+    GROUP BY login_id, username, year, month, day 
+    ORDER BY username, year, month, day;
+
+CREATE VIEW radius_user_hourly_traffic AS SELECT login_id, username, 
+    date_part('year', accttime) AS year, date_part('month', accttime) AS month,
+    date_part('day', accttime) AS day, date_part('hour', accttime) AS hour,
+    sum(acctinputoctets) AS acctinputoctets, 
+    sum(acctoutputoctets) AS acctoutputoctets FROM radius_user_traffic
+    GROUP BY login_id, username, year, month, day, hour 
+    ORDER BY username, year, month, day, hour;
+
+-- Create a function that can be called to update the customer state table
+-- with home much traffic the customer has done since the start of their current
+-- billing period
+CREATE FUNCTION update_customer_state() RETURNS integer AS '
+DECLARE
+    rows integer;
+BEGIN
+-- Update usage for sessions that have completed
+    UPDATE broadband_account SET last_updated=NOW(), used_mb=used_mb+COALESCE((
+        SELECT SUM(t.acctinputoctets+t.acctoutputoctets)/1024/1024 as mb FROM
+        radius_session s, radius_traffic t, customers c INNER JOIN logins l ON l.login_id= c.login_id WHERE 
+        s.radacctid=t.radacctid AND (s.username=l.username OR (s.username= l.username || ''@'' || l.domain))
+        AND c.login_id=broadband_account.login_id 
+        AND t.accttime>broadband_account.last_updated), 0);
+    GET DIAGNOSTICS rows = ROW_COUNT;
+    RETURN rows;
+END;
+' LANGUAGE plpgsql;
+
+-- Extra RADIUS tables that CCSD doesn't yet use, but RADIUS expects
+------------------------------------------------------------------------------
+CREATE TABLE radius_nas (
+    id              SERIAL PRIMARY KEY,
+    nasname         VARCHAR(128) NOT NULL,
+    shortname       VARCHAR(32) NOT NULL,
+    type            VARCHAR(30) NOT NULL DEFAULT 'other',
+    ports           int4,
+    secret          VARCHAR(60) NOT NULL,
+    community       VARCHAR(50),
+    description     VARCHAR(200)
+);
+CREATE INDEX radiusnas_nasname ON radius_nas (nasname);
+CREATE TABLE radius_postauth (
+    id              BIGSERIAL PRIMARY KEY,
+    username        VARCHAR(253) NOT NULL,
+    pass            VARCHAR(128),
+    reply           VARCHAR(32),
+    authdate        TIMESTAMP with time zone NOT NULL default 'now'
+);
+CREATE TABLE radius_ippool (
+    id                      BIGSERIAL PRIMARY KEY,
+    pool_name               text NOT NULL,
+    FramedIPAddress         INET,
+    NASIPAddress            text NOT NULL,
+    CalledStationId         VARCHAR(64),
+    CallingStationId        text DEFAULT ''::text NOT NULL,
+    expiry_time             TIMESTAMP(0) without time zone NOT NULL,
+    username                text DEFAULT ''::text,
+    pool_key                VARCHAR(30) NOT NULL
+);
+CREATE FUNCTION close_lost_radius_sessions() RETURNS "trigger"
+    AS '
+DECLARE
+    oldsession RECORD;
+BEGIN
+    -- Loop through the lost records (there really should only be one) and
+    -- close them, as of now, using the latest value from radius_traffic or
+    -- 0 for the data counters
+    FOR oldsession IN SELECT * FROM radius_session
+            WHERE username=NEW.username AND acctstoptime IS NULL AND
+            acctsessionid!=NEW.acctsessionid LOOP
+        UPDATE radius_session SET acctstoptime=NOW(),
+            acctinputoctets=COALESCE((SELECT acctinputoctets FROM radius_traffic
+                WHERE radius_traffic.acctsessionid=oldsession.acctsessionid
+                ORDER BY accttime DESC LIMIT 1), 0),
+            acctoutputoctets=COALESCE((SELECT acctoutputoctets
+                FROM radius_traffic
+                WHERE radius_traffic.acctsessionid=oldsession.acctsessionid
+                ORDER BY accttime DESC LIMIT 1), 0),
+            acctterminatecause=''Lost Service''
+            WHERE acctsessionid=oldsession.acctsessionid;
+    END LOOP;
+    -- All OK, Proceed
+    RETURN NEW;
+END;
+'    LANGUAGE plpgsql;
+
+-- the number of megabytes used in the currently active session
+CREATE VIEW current_customer_state AS SELECT cs.account_id, cs.login_id, 
+    cs.plan_id, cs.plan_start, cs.cap_at_mb, cs.used_mb, cs.last_updated,
+    cs.radius_plan, cs.warning_sent, cs.connection_method, l.username, ras.acctsessionid
+   FROM broadband_account cs, logins l LEFT JOIN radius_active_sessions ras ON 
+   l.username::text = ras.username::text WHERE cs.login_id = l.login_id;
+
+commit;
+-- vim: ft=sql

@@ -1,0 +1,33 @@
+Template: ccsd/notes/introduction
+Type: note
+Description: Welcome to the CRCnet Configuration System (ccsd)
+ This is an automated configuration generator for the CRCnet Configuration
+ System (CCSD). It will not configure all aspects of the system, but it should
+ be enough to get a basic installation up and running. After the install has
+ completed you may edit the configuration file at /etc/ccsd/ccsd.conf to 
+ enable further functionality. 
+ .
+ Please also refer to the documentation on the CCSD website at:
+ .
+ http://www.wand.net.nz/trac/ccs/
+
+Template: ccsd/config/domain
+Type: string
+Description: What domain name the CRCnet Configuration System should use?
+ Your system does not have a correctly configured Fully Qualified Domain Name.
+ This prevents the CRCnet Configuration System from automatically determining
+ which domain name to configure. 
+
+Template: ccsd/config/certificates
+Type: note
+Description: Self-signed SSL certificates created
+ !!!! YOUR CURRENT CONFIGURATION IS INSECURE !!!!
+ .
+ A set of self-signed certificates has been created for your configuration 
+ system installation at /etc/ccsd however they have no passphrase and are
+ very insecure.
+ .
+ Please see the following page for information on how to configure you SSL
+ certificates in a secure manner.
+ .
+ http://www.wand.net.nz/trac/ccs/wiki/Authentication

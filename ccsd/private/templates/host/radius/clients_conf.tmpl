@@ -1,0 +1,34 @@
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "clients.conf"
+#attr $serviceName = "radius"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+!set %radius = %services["radius"]
+#############################################################
+#
+# clients.conf -- RADIUS configuration for %domain
+# $Date$
+# 
+# WARNING: Do not modify this file since it is automatically
+#          generated.
+#
+#############################################################
+
+!for %host_name,%host in %radius["clients"].items()
+client %host.ip_address {
+    secret          = %host.secret
+    shortname       = %host_name
+    nastype         = other
+}
+!end for

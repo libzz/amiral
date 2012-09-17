@@ -1,0 +1,63 @@
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $multiFile = True
+#attr $fileName = "interface_dns_r"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#from crcnetd._utils.ccsd_common import ipnum, inNetwork, cidrToNetwork, cidrToNetmask, cidrToNetworkS
+#extends ccs_template
+#compiler-settings
+cheetahVarStartToken = %
+#end compiler-settings 
+## Initialise link_class interface lists
+#for %id,%lc in %link_classes.items()
+    #silent %link_classes[%id]["interfaces"] = {}
+#end for
+## Loop through hosts and assign each interface IP to a link class
+#for %host_name,%host in %hosts.items()
+    #for %ifname,%iface in %host.interfaces.items()
+        #if len(%iface.ip_address) <= 0
+            #continue
+        #end if
+        #for %id,%lc in %link_classes.items()
+            #if len(%lc.netblock) <= 0
+                #continue
+            #end if
+            #if inNetwork(ipnum(%iface.ip_address), cidrToNetwork(%lc.netblock), cidrToNetmask(%lc.netblock))
+                #silent %link_classes[%id]["interfaces"][%iface.ip_address] = "%s-%s" % (%host_name, %iface.name)
+            #end if
+        #end for
+    #end for
+#end for
+## Now generate an output file for each class
+#for %id, %lc in %link_classes.items()
+    #if len(%lc.interfaces) <= 0
+        #continue
+    #end if 
+    #if len(%lc.netblock) <= 0
+        #continue
+    #end if    
+    #set %tmp = cidrToNetworkS(%lc.netblock)
+.newfile -%tmp
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+; Reverse DNS records for interfaces addresses
+; in the %lc.netblock (%lc.description) network
+; $Date$
+; 
+; WARNING: Do not modify this file since it is automatically
+;          generated.
+;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    #set %ilist = %lc.interfaces.keys()
+    #silent %ilist.sort()
+    #for %ip_address in %ilist
+        #set %iname = %lc.interfaces[%ip_address]
+        #set %tmp = %ip_address.split(".")
+        #silent %tmp.reverse()
+        #set %rev = ".".join(%tmp)
+%{rev}.in-addr.arpa.    IN      PTR     %{iname}.%domain.
+    #end for
+#end for

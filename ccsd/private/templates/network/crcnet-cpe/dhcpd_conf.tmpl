@@ -1,0 +1,39 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+This template creates the DHCP server configuration
+*#
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "dhcpd.conf"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict with DHCP syntax
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+#
+# CRCnet CPE DHCP Configuration
+#
+# This file was automatically generated on the date below and is automatically
+# maintained by crcnet-monitor. DO NOT EDIT
+# $Date$
+
+ddns-update-style none;
+option domain-name "%services.dhcp.domain";
+option domain-name-servers %services.dhcp.ns1, %services.dhcp.ns2;
+
+default-lease-time %services.dhcp.default_lease_time;
+max-lease-time %services.dhcp.max_lease_time;
+
+# Interface int
+subnet 192.168.0.0 netmask 255.255.255.0 {
+    range 192.168.0.128 192.168.0.253;
+    option routers 192.168.0.254;
+}

@@ -1,0 +1,56 @@
+/* Copyright (C) 2006  The University of Waikato
+ *
+ * This file is part of ccsweb - CRCnet Configuration System Web Interface
+ *
+ * Host specific styles
+ *
+ * Author:       Matt Brown <matt@crc.net.nz>
+ * Version:      $Id$
+ *
+ * ccsweb is free software; you can redistribute it and/or modify it under the
+ * terms of the GNU General Public License version 2 as published by the Free
+ * Software Foundation.
+ *
+ * ccsweb is distributed in the hope that it will be useful, but WITHOUT ANY
+ * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
+ * details.
+ *
+ * You should have received a copy of the GNU General Public License along with
+ * ccsweb; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+ */
+#hostdetails SELECT {
+    width: 210px;
+}
+#hostdetails INPUT[type="text"] {
+    width: 210px;
+}
+DIV.interfaces {
+    padding-bottom: 10px;
+    margin-bottom: 10px;
+}
+.hide {
+    display: none;
+}
+#hoverwin {
+    position: absolute;
+    -moz-border-radius: 10px;
+    background-color: grey;
+    border: 2px solid black;
+    padding: 8px;
+    font-weight: bold;
+    text-align: center;
+    display: none;
+}
+v\:* {
+    behavior:url(#default#VML);
+}
+.iwin-content H1 {
+    text-align: left;
+}
+.iwin-content H1 SPAN {
+    font-weight: normal;
+    font-size: 80%;
+    color: #555555;
+}

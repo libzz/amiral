@@ -1,0 +1,14 @@
+#!/bin/sh
+set -e
+
+# Create a system user for the configuration system
+if [ -x getent ]; then
+    if ! getent passwd ccsd >/dev/null; then
+        adduser --quiet --system --group --no-create-home \
+            --home /var/cache/ccsd ccsd
+    fi
+fi
+
+#DEBHELPER#
+
+exit 0

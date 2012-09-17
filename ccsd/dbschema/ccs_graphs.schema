@@ -1,0 +1,763 @@
+-- 
+-- PostgreSQL create schema for CRCnet Configuration Systems billing module
+--
+-- All prices in these tables should be sales tax exclusive
+--
+-- Author:  Chris Browning <ckb6@cs.waikato.ac.nz>
+--          Matt Brown  <matt@crc.net.nz>
+-- Version:  $Id$
+--
+
+
+CREATE TABLE rrdbot_class (
+    class_id    SERIAL          PRIMARY KEY,
+    class_name  varchar(64)     UNIQUE NOT NULL,
+    poll        varchar(64),
+    interval    integer,
+    cf          varchar(8),
+    archive     varchar(256),
+    depends     integer         DEFAULT 0,
+    ipfromoid   integer,
+    skip_software_loop  integer,
+    key         varchar(64),
+    upper_bound  integer,
+    lower_bound  integer
+);
+
+CREATE TABLE rrdbot_class_parts (
+    part_id     SERIAL          PRIMARY KEY,
+    class_id    integer,
+    name        varchar(64),
+    poll        varchar(64),
+    type        varchar(64),
+    min         integer         DEFAULT NULL,
+    max         integer         DEFAULT NULL
+);
+
+-- Graph classes that we know about
+CREATE TABLE graph_group (
+    group_id        SERIAL          PRIMARY KEY,
+    group_name      varchar(64)
+);
+
+-- Graphs that we know about
+CREATE TABLE graph_type (
+    graph_id        SERIAL          PRIMARY KEY,
+    group_id        integer NOT NULL REFERENCES graph_group (group_id) ON DELETE CASCADE,
+    class_id        integer NOT NULL REFERENCES rrdbot_class (class_id) ON DELETE CASCADE,
+    title           varchar(64),
+    filename        varchar(64),
+    rigid           varchar(1) DEFAULT 'f',
+    auto_comment    varchar(1) DEFAULT 'f',
+    upper           integer DEFAULT NULL,
+    virtical_label  varchar(64),
+    units           integer DEFAULT 1,
+    base           integer DEFAULT NULL
+);
+
+
+-- All the graph parts, relate to a graph by graph_id
+-- ie, LINE, AREA etc
+CREATE TABLE graph_parts (
+    part_id         SERIAL      PRIMARY KEY,
+    graph_id        integer NOT NULL REFERENCES graph_type (graph_id) ON DELETE CASCADE,
+    graph_order     integer,
+    type            varchar(10),
+    colour          varchar(20),
+    text            varchar(128),
+    varname         varchar(64),
+    cf              varchar(8),
+    filename        varchar(128)
+);
+
+
+
+CREATE TABLE graph_time ( 
+    time_id SERIAL PRIMARY KEY,
+    start_time varchar(10),
+    end_time varchar(10),
+    name varchar(20) NOT NULL
+);
+
+-- rrdbot-script discoveries
+CREATE TABLE snmp_discovery (
+    host_id       integer   NOT NULL REFERENCES host (host_id) ON DELETE CASCADE,
+    --name of class found
+    class_id      integer   NOT NULL REFERENCES rrdbot_class (class_id) ON DELETE CASCADE,
+    num           varchar(24)   NOT NULL,
+    ip_address    varchar(20),
+    link_id       integer,
+    --Time of last discovery of this class
+    timestamp       timestamp with time zone NOT NULL DEFAULT NOW()
+);
+CREATE TABLE snmp_instructions (
+    host_id      integer   NOT NULL REFERENCES host (host_id) ON DELETE CASCADE,
+    instr       integer,
+    param1      varchar(64),
+    param2      varchar(64),
+    param3      varchar(64),
+    timestamp   timestamp with time zone NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE snmp_state (
+    state      integer   NOT NULL
+);
+
+CREATE VIEW graphview as SELECT a.title, a.group_id, f.group_name, b.link_id, b.ip_address, b.num, a.graph_id, d.host_name, d.host_id, e.description from graph_type a, snmp_discovery b LEFT JOIN link e ON e.link_id=b.link_id, rrdbot_class c, host d, graph_group f WHERE c.class_id=b.class_id AND a.class_id = c.class_id AND d.host_id=b.host_id AND f.group_id=a.group_id ORDER BY host_id, link_id, graph_id;
+
+CREATE VIEW mirrortmp as select a.*, b.host_id as host_id2, b.link_id as link_id2, b.host_name as host_name2, b.graph_id as graph_id2, b.ip_address as ip_address2, b.num as num2 from graphview a, graphview b where  b.host_name=a.num AND b.num=a.host_name AND b.graph_id=a.graph_id AND a.link_id!=0;
+
+CREATE VIEW mirrorview as SELECT a.*, b.host_id2, b.host_name2, b.ip_address2, b.num2 from graphview a LEFT JOIN mirrortmp b on a.host_id=b.host_id AND a.link_id=b.link_id AND a.graph_id=b.graph_id;
+
+create view rrdbotlog as select a.host_id, a.class_id, c.class_name, b.host_name, a.num, a.ip_address, a.timestamp, a.link_id, d.description from snmp_discovery a LEFT JOIN link d on a.link_id=d.link_id, host b, rrdbot_class c where b.host_id=a.host_id and c.class_id=a.class_id;
+
+-- Required values for graphs
+INSERT INTO graph_time VALUES ( DEFAULT, '-1h', 'now', 'Hour');
+INSERT INTO graph_time VALUES ( DEFAULT, '-1d', 'now', 'Day');
+INSERT INTO graph_time VALUES ( DEFAULT, '-1w', 'now', 'Week');
+INSERT INTO graph_time VALUES ( DEFAULT, '-1m', 'now', 'Month');
+INSERT INTO graph_time VALUES ( DEFAULT, '-1y', 'now', 'Year');
+
+INSERT INTO graph_time VALUES ( DEFAULT, '-2h', '-1h', 'Last Hour');
+INSERT INTO graph_time VALUES ( DEFAULT, '-2d', '-1d', 'Yesturday');
+INSERT INTO graph_time VALUES ( DEFAULT, '-2w', '-1w', 'Last Week');
+INSERT INTO graph_time VALUES ( DEFAULT, '-2m', '-1m', 'Last Month');
+INSERT INTO graph_time VALUES ( DEFAULT, '-2y', '-1y', 'Last Year');
+
+
+-- Set the initial state
+INSERT INTO snmp_state VALUES ( 0);
+
+
+-- Below is a default setup for classes and graphs
+
+-- rrdbot Classes
+INSERT INTO rrdbot_class VALUES (DEFAULT, 'interface', 'ipAdEntIfIndex:walk', 300, 'AVERAGE', '12/hour * 2 days, 2/hour * 2 weeks, 12/day * 10 weeks, 1/day * 800 days', 0, 1, 1,'ifDescr');
+INSERT INTO rrdbot_class VALUES (DEFAULT, 'wireless', 'lsIndex', 300, 'AVERAGE', '12/hour * 2 days, 2/hour * 2 weeks, 12/day * 10 weeks, 1/day * 800 days', 1, 0, 0, '');
+INSERT INTO rrdbot_class VALUES (DEFAULT, 'solar', 'battVoltage:exist', 300, 'AVERAGE', '12/hour * 2 days, 2/hour * 2 weeks, 12/day * 10 weeks, 1/day * 800 days', 0, 0, 0, '');
+INSERT INTO rrdbot_class VALUES (DEFAULT, 'processor', 'laLoad.1:exist', 300, 'AVERAGE', '12/hour * 2 days, 2/hour * 2 weeks, 12/day * 10 weeks, 1/day * 800 days', 0, 0, 0, '');
+INSERT INTO rrdbot_class VALUES (DEFAULT, 'ratestats250', 'wifiPackets.250.1', 300, 'AVERAGE', '12/hour * 2 days, 2/hour * 2 weeks, 12/day * 10 weeks, 1/day * 800 days', 1, 0, 0, '');
+INSERT INTO rrdbot_class VALUES (DEFAULT, 'ratestats1600', 'wifiPackets.1600.1', 300, 'AVERAGE', '12/hour * 2 days, 2/hour * 2 weeks, 12/day * 10 weeks, 1/day * 800 days', 1, 0, 0, '');
+INSERT INTO rrdbot_class VALUES (DEFAULT, 'ratestats3000', 'wifiPackets.3000.1', 300, 'AVERAGE', '12/hour * 2 days, 2/hour * 2 weeks, 12/day * 10 weeks, 1/day * 800 days', 1, 0, 0, '');
+INSERT INTO rrdbot_class VALUES (DEFAULT, 'associated-clients', 'lsClients', 300, 'AVERAGE', '12/hour * 2 days, 2/hour * 2 weeks, 12/day * 10 weeks, 1/day * 800 days', 1, 0, 0, '',DEFAULT,0);
+INSERT INTO rrdbot_class VALUES (DEFAULT, 'atheros-errors', 'lsAthCRC', 300, 'AVERAGE', '12/hour * 2 days, 2/hour * 2 weeks, 12/day * 10 weeks, 1/day * 800 days', 1, 0, 0, '',DEFAULT,0);
+
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 1,'ifInOctets','ifInOctets','COUNTER',0,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 1,'ifInUcastPkts','ifInUcastPkts','COUNTER',0,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 1,'ifInDiscards','ifInDiscards','COUNTER',0,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 1,'ifInErrors','ifInErrors','COUNTER',0,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 1,'ifOutOctets','ifOutOctets','COUNTER',0,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 1,'ifOutUcastPkts','ifOutUcastPkts','COUNTER',0,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 1,'ifOutDiscards','ifOutDiscards','COUNTER',0,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 1,'ifOutErrors','ifOutErrors','COUNTER',0,NULL);
+
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 2,'linkCurrentQuality','linkCurrentQuality','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 2,'linkCurrentSignal','linkCurrentSignalLevel','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 2,'linkCurrentNoise','linkCurrentNoiseLevel','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 2,'linkChannel','linkChannel','GAUGE',0,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 2,'linkBitRate','linkBitRate','GAUGE',0,NULL);
+
+
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 3,'battVoltage','battVoltage','GAUGE',0,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 3,'battsenseVoltage','battsenseVoltage','GAUGE',0,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 3,'arrayVoltage','arrayVoltage','GAUGE',0,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 3,'refVoltage','refVoltage','GAUGE',0,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 3,'loadCurrent','loadCurrent','GAUGE',0,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 3,'chargeCurrent','chargeCurrent','GAUGE',0,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 3,'hstemp','hstemp','GAUGE',0,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, 3,'battemp','battemp','GAUGE',0,NULL);
+
+
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='processor'), '1-Min-Avg','laLoadInt.1','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='processor'), '5-Min-Avg','laLoadInt.2','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='processor'), '15-Min-Avg','laLoadInt.3','GAUGE',NULL,NULL);
+
+
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats250'), 'Packets1','wifiPackets.250.1','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats250'), 'Packets2','wifiPackets.250.2','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats250'), 'Packets5','wifiPackets.250.5','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats250'), 'Packets6','wifiPackets.250.6','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats250'), 'Packets9','wifiPackets.250.9','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats250'), 'Packets11','wifiPackets.250.11','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats250'), 'Packets12','wifiPackets.250.12','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats250'), 'Packets18','wifiPackets.250.18','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats250'), 'Packets24','wifiPackets.250.24','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats250'), 'Packets36','wifiPackets.250.36','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats250'), 'Packets48','wifiPackets.250.48','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats250'), 'Packets54','wifiPackets.250.54','COUNTER',NULL,NULL);
+
+
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats1600'), 'Packets1','wifiPackets.1600.1','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats1600'), 'Packets2','wifiPackets.1600.2','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats1600'), 'Packets5','wifiPackets.1600.5','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats1600'), 'Packets6','wifiPackets.1600.6','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats1600'), 'Packets9','wifiPackets.1600.9','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats1600'), 'Packets11','wifiPackets.1600.11','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats1600'), 'Packets12','wifiPackets.1600.12','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats1600'), 'Packets18','wifiPackets.1600.18','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats1600'), 'Packets24','wifiPackets.1600.24','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats1600'), 'Packets36','wifiPackets.1600.36','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats1600'), 'Packets48','wifiPackets.1600.48','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats1600'), 'Packets54','wifiPackets.1600.54','COUNTER',NULL,NULL);
+
+
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats3000'), 'Packets1','wifiPackets.3000.1','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats3000'), 'Packets2','wifiPackets.3000.2','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats3000'), 'Packets5','wifiPackets.3000.5','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats3000'), 'Packets6','wifiPackets.3000.6','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats3000'), 'Packets9','wifiPackets.3000.9','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats3000'), 'Packets11','wifiPackets.3000.11','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats3000'), 'Packets12','wifiPackets.3000.12','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats3000'), 'Packets18','wifiPackets.3000.18','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats3000'), 'Packets24','wifiPackets.3000.24','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats3000'), 'Packets36','wifiPackets.3000.36','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats3000'), 'Packets48','wifiPackets.3000.48','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats3000'), 'Packets54','wifiPackets.3000.54','COUNTER',NULL,NULL);
+
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats250'), 'Failed1','wifiFailed.250.1','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats250'), 'Failed2','wifiFailed.250.2','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats250'), 'Failed5','wifiFailed.250.5','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats250'), 'Failed6','wifiFailed.250.6','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats250'), 'Failed9','wifiFailed.250.9','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats250'), 'Failed11','wifiFailed.250.11','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats250'), 'Failed12','wifiFailed.250.12','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats250'), 'Failed18','wifiFailed.250.18','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats250'), 'Failed24','wifiFailed.250.24','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats250'), 'Failed36','wifiFailed.250.36','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats250'), 'Failed48','wifiFailed.250.48','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats250'), 'Failed54','wifiFailed.250.54','COUNTER',NULL,NULL);
+
+
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats1600'), 'Failed1','wifiFailed.1600.1','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats1600'), 'Failed2','wifiFailed.1600.2','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats1600'), 'Failed5','wifiFailed.1600.5','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats1600'), 'Failed6','wifiFailed.1600.6','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats1600'), 'Failed9','wifiFailed.1600.9','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats1600'), 'Failed11','wifiFailed.1600.11','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats1600'), 'Failed12','wifiFailed.1600.12','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats1600'), 'Failed18','wifiFailed.1600.18','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats1600'), 'Failed24','wifiFailed.1600.24','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats1600'), 'Failed36','wifiFailed.1600.36','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats1600'), 'Failed48','wifiFailed.1600.48','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats1600'), 'Failed54','wifiFailed.1600.54','COUNTER',NULL,NULL);
+
+
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats3000'), 'Failed1','wifiFailed.3000.1','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats3000'), 'Failed2','wifiFailed.3000.2','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats3000'), 'Failed5','wifiFailed.3000.5','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats3000'), 'Failed6','wifiFailed.3000.6','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats3000'), 'Failed9','wifiFailed.3000.9','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats3000'), 'Failed11','wifiFailed.3000.11','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats3000'), 'Failed12','wifiFailed.3000.12','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats3000'), 'Failed18','wifiFailed.3000.18','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats3000'), 'Failed24','wifiFailed.3000.24','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats3000'), 'Failed36','wifiFailed.3000.36','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats3000'), 'Failed48','wifiFailed.3000.48','COUNTER',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats3000'), 'Failed54','wifiFailed.3000.54','COUNTER',NULL,NULL);
+
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats250'), 'AvgTries1','wifiAvgTries.250.1','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats250'), 'AvgTries2','wifiAvgTries.250.2','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats250'), 'AvgTries5','wifiAvgTries.250.5','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats250'), 'AvgTries6','wifiAvgTries.250.6','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats250'), 'AvgTries9','wifiAvgTries.250.9','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats250'), 'AvgTries11','wifiAvgTries.250.11','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats250'), 'AvgTries12','wifiAvgTries.250.12','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats250'), 'AvgTries18','wifiAvgTries.250.18','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats250'), 'AvgTries24','wifiAvgTries.250.24','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats250'), 'AvgTries36','wifiAvgTries.250.36','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats250'), 'AvgTries48','wifiAvgTries.250.48','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats250'), 'AvgTries54','wifiAvgTries.250.54','GAUGE',NULL,NULL);
+
+
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats1600'), 'AvgTries1','wifiAvgTries.1600.1','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats1600'), 'AvgTries2','wifiAvgTries.1600.2','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats1600'), 'AvgTries5','wifiAvgTries.1600.5','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats1600'), 'AvgTries6','wifiAvgTries.1600.6','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats1600'), 'AvgTries9','wifiAvgTries.1600.9','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats1600'), 'AvgTries11','wifiAvgTries.1600.11','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats1600'), 'AvgTries12','wifiAvgTries.1600.12','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats1600'), 'AvgTries18','wifiAvgTries.1600.18','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats1600'), 'AvgTries24','wifiAvgTries.1600.24','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats1600'), 'AvgTries36','wifiAvgTries.1600.36','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats1600'), 'AvgTries48','wifiAvgTries.1600.48','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats1600'), 'AvgTries54','wifiAvgTries.1600.54','GAUGE',NULL,NULL);
+
+
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats3000'), 'AvgTries1','wifiAvgTries.3000.1','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats3000'), 'AvgTries2','wifiAvgTries.3000.2','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats3000'), 'AvgTries5','wifiAvgTries.3000.5','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats3000'), 'AvgTries6','wifiAvgTries.3000.6','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats3000'), 'AvgTries9','wifiAvgTries.3000.9','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats3000'), 'AvgTries11','wifiAvgTries.3000.11','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats3000'), 'AvgTries12','wifiAvgTries.3000.12','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats3000'), 'AvgTries18','wifiAvgTries.3000.18','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats3000'), 'AvgTries24','wifiAvgTries.3000.24','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats3000'), 'AvgTries36','wifiAvgTries.3000.36','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats3000'), 'AvgTries48','wifiAvgTries.3000.48','GAUGE',NULL,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='ratestats3000'), 'AvgTries54','wifiAvgTries.3000.54','GAUGE',NULL,NULL);
+
+
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='associated-clients'), 'no-clients','lsClients','GAUGE',0,NULL);
+
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='atheros-errors'), 'PHY','lsAthPHY','COUNTER',0,NULL);
+INSERT INTO rrdbot_class_parts VALUES (DEFAULT, (SELECT class_id from rrdbot_class WHERE class_name='atheros-errors'), 'CRC','lsAthCRC','COUNTER',0,NULL);
+-- Graphs
+
+INSERT INTO graph_group VALUES (DEFAULT, 'Traffic');
+INSERT INTO graph_group VALUES (DEFAULT, 'Solar');
+INSERT INTO graph_group VALUES (DEFAULT, 'Signal to Noise Ratio');
+INSERT INTO graph_group VALUES (DEFAULT, 'Signal / Noise Levels');
+INSERT INTO graph_group VALUES (DEFAULT, 'Host Status');
+INSERT INTO graph_group VALUES (DEFAULT, 'Madwifi Transmit Rates');
+INSERT INTO graph_group VALUES (DEFAULT, 'Access Point Status');
+INSERT INTO graph_group VALUES (DEFAULT, 'Atheros');
+
+INSERT INTO graph_type VALUES (DEFAULT, 1, 1, 'Traffic Rate', 'interface', DEFAULT, 't', DEFAULT,'Bits per second');
+INSERT INTO graph_type VALUES (DEFAULT, 1, 1, 'Error Rate', 'interface', DEFAULT, 't', DEFAULT,'Errors per second');
+
+INSERT INTO graph_type VALUES (DEFAULT, 2, 3, 'Battery Voltage', 'solar', DEFAULT, 't', DEFAULT,'Voltage');
+INSERT INTO graph_type VALUES (DEFAULT, 2, 3, 'Array Voltage', 'solar', DEFAULT, 't', DEFAULT,'Voltage');
+INSERT INTO graph_type VALUES (DEFAULT, 2, 3, 'Current', 'solar', DEFAULT, 't', DEFAULT,'Amps');
+INSERT INTO graph_type VALUES (DEFAULT, 2, 3, 'Temperature', 'solar', DEFAULT, 't', DEFAULT,'Deg. Celcius');
+
+INSERT INTO graph_type VALUES (DEFAULT, 3, 2, 'Signal to Noise Ratio', 'wireless', DEFAULT, 't', DEFAULT,'SNR');
+INSERT INTO graph_type VALUES (DEFAULT, 4, 2, 'Signal / Noise', 'wireless', DEFAULT, 't', DEFAULT,'-dbM');
+
+INSERT INTO graph_type VALUES (DEFAULT, 5, 4, 'Load Average', 'processor', DEFAULT, 't', DEFAULT,'',0);
+
+INSERT INTO graph_type VALUES (DEFAULT, 6, 5, 'Packets(0-250 bytes)', 'ratestats250', 't', DEFAULT, 100,'%');
+INSERT INTO graph_type VALUES (DEFAULT, 6, 5, 'Failed(0-250 bytes)', 'ratestats250', 't', DEFAULT, 100,'%');
+INSERT INTO graph_type VALUES (DEFAULT, 6, 5, 'Average Tries(0-250 bytes)', 'ratestats250', DEFAULT, DEFAULT, DEFAULT,'');
+
+INSERT INTO graph_type VALUES (DEFAULT, 6, 6, 'Packets(251-1600 bytes)', 'ratestats1600', 't', DEFAULT, 100,'%');
+INSERT INTO graph_type VALUES (DEFAULT, 6, 6, 'Failed(251-1600 bytes)', 'ratestats1600', 't', DEFAULT, 100,'%');
+INSERT INTO graph_type VALUES (DEFAULT, 6, 6, 'Average Tries(251-1600 bytes)', 'ratestats1600', DEFAULT, DEFAULT, DEFAULT,'');
+
+INSERT INTO graph_type VALUES (DEFAULT, 6, 7, 'Packets(1601-3000 bytes)', 'ratestats3000', 't', DEFAULT, 100,'%');
+INSERT INTO graph_type VALUES (DEFAULT, 6, 7, 'Failed(1601-3000 bytes)', 'ratestats3000', 't', DEFAULT, 100,'%');
+INSERT INTO graph_type VALUES (DEFAULT, 6, 7, 'Average Tries(1601-3000 bytes)', 'ratestats3000', DEFAULT, DEFAULT, DEFAULT,'');
+
+INSERT INTO graph_type VALUES (DEFAULT, 7, 8, 'Associated Clients', 'associated-clients', DEFAULT, 't', DEFAULT,'');
+
+INSERT INTO graph_type VALUES (DEFAULT, 8, 9, 'Atheros Errors', 'atheros-errors', DEFAULT, 't', DEFAULT,'Errors per second');
+
+INSERT INTO graph_parts VALUES (DEFAULT, 1, 1, 'DEF', 0, 'ifInOctets','val1', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 1, 1, 'DEF', 0, 'ifOutOctets','val2', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 1, 2, 'CDEF', 0, 'val1,8,*','cval1', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 1, 2, 'CDEF', 0, 'val2,8,*','cval2', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 1, 3, 'AREA', '00CC00', 'In', 'cval1', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 1, 4, 'LINE2', '0000FF', 'Out', 'cval2', '');
+
+INSERT INTO graph_parts VALUES (DEFAULT, 2, 1, 'DEF', 0, 'ifInErrors','val1', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 2, 1, 'DEF', 0, 'ifOutErrors','val2', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 2, 3, 'AREA', '00CC00', 'Errors In', 'val1', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 2, 4, 'LINE2', '0000FF', 'Errors out', 'val2', '');
+
+INSERT INTO graph_parts VALUES (DEFAULT, 3, 1, 'DEF', 0, 'battVoltage','val1', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 3, 1, 'DEF', 0, 'battsenseVoltage','val2', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 3, 2, 'CDEF', 0, 'val1,1000,/','cval1', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 3, 2, 'CDEF', 0, 'val2,1000,/','cval2', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 3, 3, 'AREA', '00CC00', 'Batt Voltage', 'cval1', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 3, 4, 'LINE2', '0000FF', 'Sense Voltage', 'cval2', '');
+
+INSERT INTO graph_parts VALUES (DEFAULT, 4, 1, 'DEF', 0, 'arrayVoltage','val1', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 4, 1, 'DEF', 0, 'refVoltage','val2', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 4, 2, 'CDEF', 0, 'val1,1000,/','cval1', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 4, 2, 'CDEF', 0, 'val2,1000,/','cval2', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 4, 3, 'AREA', '00CC00', 'Array Voltage', 'cval1', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 4, 4, 'LINE2', '0000FF', 'Reference Voltage', 'cval2', '');
+
+INSERT INTO graph_parts VALUES (DEFAULT, 5, 1, 'DEF', 0, 'loadCurrent','val1', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 5, 1, 'DEF', 0, 'chargeCurrent','val2', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 5, 2, 'CDEF', 0, 'val1,1000,/','cval1', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 5, 2, 'CDEF', 0, 'val2,1000,/','cval2', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 5, 3, 'AREA', '00CC00', 'Load Current', 'cval1', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 5, 4, 'LINE2', '0000FF', 'Charge Current', 'cval2', '');
+
+INSERT INTO graph_parts VALUES (DEFAULT, 6, 1, 'DEF', 0, 'hstemp','val1', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 6, 1, 'DEF', 0, 'battemp','val2', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 6, 2, 'AREA', '00FF00', 'Heatsink Temp', 'val1', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 6, 3, 'LINE2', '0000FF', 'Battery Temp', 'val2', '');
+
+INSERT INTO graph_parts VALUES (DEFAULT, 7, 1, 'DEF', 0, 'linkCurrentSignal','val1', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 7, 1, 'DEF', 0, 'linkCurrentNoise','val2', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 7, 2, 'CDEF', 0, 'val1,val2,-','snr', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 7, 3, 'LINE2', '00FF00', 'SNR', 'snr', '');
+
+INSERT INTO graph_parts VALUES (DEFAULT, 8, 1, 'DEF', 0, 'linkCurrentSignal','val1', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 8, 1, 'DEF', 0, 'linkCurrentNoise','val2', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 8, 2, 'CDEF', 0, 'val1,-1,*','cval1', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 8, 2, 'CDEF', 0, 'val2,-1,*','cval2', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 8, 3, 'AREA', '00CC00', 'Signal', 'cval1', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 8, 4, 'LINE2', '0000FF', 'Noise', 'cval2', '');
+
+INSERT INTO graph_parts VALUES (DEFAULT, 9, 1, 'DEF', 0, '1-Min-Avg','1m_avg', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 9, 1, 'DEF', 0, '5-Min-Avg','5m_avg', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 9, 1, 'DEF', 0, '15-Min-Avg','15m_avg', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 9, 2, 'CDEF', 0, '1m_avg,100,/','sc_1m_avg', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 9, 2, 'CDEF', 0, '5m_avg,100,/','sc_5m_avg', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 9, 2, 'CDEF', 0, '15m_avg,100,/','sc_15m_avg', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 9, 3, 'AREA', '19e319', '1 Min. Load Average', 'sc_1m_avg', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 9, 4, 'STACK', 'ed2510', '5 Min. Load Average', 'sc_5m_avg', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 9, 5, 'STACK', 'ffba14', '15 Min. Load Average', 'sc_15m_avg', '');
+
+INSERT INTO graph_parts VALUES (DEFAULT, 10, 1, 'DEF', 0, 'Packets1','t1', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 10, 1, 'DEF', 0, 'Packets2','t2', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 10, 1, 'DEF', 0, 'Packets5','t5', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 10, 1, 'DEF', 0, 'Packets6','t6', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 10, 1, 'DEF', 0, 'Packets9','t9', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 10, 1, 'DEF', 0, 'Packets11','t11', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 10, 1, 'DEF', 0, 'Packets12','t12', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 10, 1, 'DEF', 0, 'Packets18','t18', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 10, 1, 'DEF', 0, 'Packets24','t24', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 10, 1, 'DEF', 0, 'Packets36','t36', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 10, 1, 'DEF', 0, 'Packets48','t48', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 10, 1, 'DEF', 0, 'Packets54','t54', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 10, 2, 'CDEF', 0, 't1,t2,+,t5,+,t6,+,t9,+,t11,+,t12,+,t18,+,t24,+,t36,+,t48,+,t54,+', 'sum', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 10, 3, 'CDEF', 0, 't1,sum,/,100,*', 'p1', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 10, 3, 'CDEF', 0, 't2,sum,/,100,*', 'p2', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 10, 3, 'CDEF', 0, 't5,sum,/,100,*', 'p5', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 10, 3, 'CDEF', 0, 't6,sum,/,100,*', 'p6', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 10, 3, 'CDEF', 0, 't9,sum,/,100,*', 'p9', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 10, 3, 'CDEF', 0, 't11,sum,/,100,*', 'p11', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 10, 3, 'CDEF', 0, 't12,sum,/,100,*', 'p12', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 10, 3, 'CDEF', 0, 't18,sum,/,100,*', 'p18', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 10, 3, 'CDEF', 0, 't24,sum,/,100,*', 'p24', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 10, 3, 'CDEF', 0, 't36,sum,/,100,*', 'p36', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 10, 3, 'CDEF', 0, 't48,sum,/,100,*', 'p48', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 10, 3, 'CDEF', 0, 't54,sum,/,100,*', 'p54', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 10, 3, 'COMMENT', '0', 'Bit rate MBit/sec\\n', '', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 10, 4, 'AREA', 'FF3300', '1', 'p1', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 10, 5, 'STACK', 'FF6600', '2', 'p2', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 10, 6, 'STACK', 'FD9612', '5.5', 'p5', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 10, 7, 'STACK', 'e9b832', '6', 'p6', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 10, 8, 'STACK', 'd95ae4', '9', 'p9', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 10, 9, 'STACK', '7835c4', '11', 'p11', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 10, 10, 'STACK', '99ccff', '12', 'p12', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 10, 11, 'STACK', '378ee5', '18', 'p18', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 10, 12, 'STACK', '6666FF', '24', 'p24', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 10, 13, 'STACK', '07d09a', '36', 'p36', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 10, 14, 'STACK', '009933', '48', 'p48', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 10, 15, 'STACK', '00FF33', '54', 'p54', '');
+
+INSERT INTO graph_parts VALUES (DEFAULT, 11, 1, 'DEF', 0, 'Failed1','t1', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 11, 1, 'DEF', 0, 'Failed2','t2', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 11, 1, 'DEF', 0, 'Failed5','t5', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 11, 1, 'DEF', 0, 'Failed6','t6', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 11, 1, 'DEF', 0, 'Failed9','t9', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 11, 1, 'DEF', 0, 'Failed11','t11', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 11, 1, 'DEF', 0, 'Failed12','t12', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 11, 1, 'DEF', 0, 'Failed18','t18', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 11, 1, 'DEF', 0, 'Failed24','t24', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 11, 1, 'DEF', 0, 'Failed36','t36', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 11, 1, 'DEF', 0, 'Failed48','t48', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 11, 1, 'DEF', 0, 'Failed54','t54', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 11, 2, 'CDEF', 0, 't1,t2,+,t5,+,t6,+,t9,+,t11,+,t12,+,t18,+,t24,+,t36,+,t48,+,t54,+', 'sum', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 11, 3, 'CDEF', 0, 't1,sum,/,100,*', 'p1', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 11, 3, 'CDEF', 0, 't2,sum,/,100,*', 'p2', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 11, 3, 'CDEF', 0, 't5,sum,/,100,*', 'p5', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 11, 3, 'CDEF', 0, 't6,sum,/,100,*', 'p6', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 11, 3, 'CDEF', 0, 't9,sum,/,100,*', 'p9', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 11, 3, 'CDEF', 0, 't11,sum,/,100,*', 'p11', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 11, 3, 'CDEF', 0, 't12,sum,/,100,*', 'p12', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 11, 3, 'CDEF', 0, 't18,sum,/,100,*', 'p18', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 11, 3, 'CDEF', 0, 't24,sum,/,100,*', 'p24', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 11, 3, 'CDEF', 0, 't36,sum,/,100,*', 'p36', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 11, 3, 'CDEF', 0, 't48,sum,/,100,*', 'p48', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 11, 3, 'CDEF', 0, 't54,sum,/,100,*', 'p54', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 11, 3, 'COMMENT', '0', 'Bit rate MBit/sec\\n', '', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 11, 4, 'AREA', 'FF3300', '1', 'p1', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 11, 5, 'STACK', 'FF6600', '2', 'p2', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 11, 6, 'STACK', 'FD9612', '5.5', 'p5', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 11, 7, 'STACK', 'e9b832', '6', 'p6', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 11, 8, 'STACK', 'd95ae4', '9', 'p9', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 11, 9, 'STACK', '7835c4', '11', 'p11', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 11, 10, 'STACK', '99ccff', '12', 'p12', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 11, 11, 'STACK', '378ee5', '18', 'p18', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 11, 12, 'STACK', '6666FF', '24', 'p24', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 11, 13, 'STACK', '07d09a', '36', 'p36', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 11, 14, 'STACK', '009933', '48', 'p48', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 11, 15, 'STACK', '00FF33', '54', 'p54', '');
+
+INSERT INTO graph_parts VALUES (DEFAULT, 12, 1, 'DEF', 0, 'AvgTries1','t1', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 12, 1, 'DEF', 0, 'AvgTries2','t2', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 12, 1, 'DEF', 0, 'AvgTries5','t5', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 12, 1, 'DEF', 0, 'AvgTries6','t6', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 12, 1, 'DEF', 0, 'AvgTries9','t9', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 12, 1, 'DEF', 0, 'AvgTries11','t11', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 12, 1, 'DEF', 0, 'AvgTries12','t12', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 12, 1, 'DEF', 0, 'AvgTries18','t18', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 12, 1, 'DEF', 0, 'AvgTries24','t24', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 12, 1, 'DEF', 0, 'AvgTries36','t36', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 12, 1, 'DEF', 0, 'AvgTries48','t48', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 12, 1, 'DEF', 0, 'AvgTries54','t54', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 12, 2, 'CDEF', 0, 't1,100,/', 'p1', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 12, 3, 'CDEF', 0, 't2,100,/', 'p2', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 12, 3, 'CDEF', 0, 't5,100,/', 'p5', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 12, 3, 'CDEF', 0, 't6,100,/', 'p6', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 12, 3, 'CDEF', 0, 't9,100,/', 'p9', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 12, 3, 'CDEF', 0, 't11,100,/', 'p11', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 12, 3, 'CDEF', 0, 't12,100,/', 'p12', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 12, 3, 'CDEF', 0, 't18,100,/', 'p18', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 12, 3, 'CDEF', 0, 't24,100,/', 'p24', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 12, 3, 'CDEF', 0, 't36,100,/', 'p36', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 12, 3, 'CDEF', 0, 't48,100,/', 'p48', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 12, 3, 'CDEF', 0, 't54,100,/', 'p54', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 12, 3, 'COMMENT', '0', 'Bit rate MBit/sec\\n', '', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 12, 4, 'LINE2', 'FF3300', '1', 'p1', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 12, 5, 'LINE2', 'FF6600', '2', 'p2', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 12, 6, 'LINE2', 'FD9612', '5.5', 'p5', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 12, 7, 'LINE2', 'e9b832', '6', 'p6', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 12, 8, 'LINE2', 'd95ae4', '9', 'p9', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 12, 9, 'LINE2', '7835c4', '11', 'p11', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 12, 10, 'LINE2', '99ccff', '12', 'p12', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 12, 11, 'LINE2', '378ee5', '18', 'p18', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 12, 12, 'LINE2', '6666FF', '24', 'p24', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 12, 13, 'LINE2', '07d09a', '36', 'p36', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 12, 14, 'LINE2', '009933', '48', 'p48', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 12, 15, 'LINE2', '00FF33', '54', 'p54', '');
+
+
+INSERT INTO graph_parts VALUES (DEFAULT, 13, 1, 'DEF', 0, 'Packets1','t1', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 13, 1, 'DEF', 0, 'Packets2','t2', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 13, 1, 'DEF', 0, 'Packets5','t5', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 13, 1, 'DEF', 0, 'Packets6','t6', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 13, 1, 'DEF', 0, 'Packets9','t9', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 13, 1, 'DEF', 0, 'Packets11','t11', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 13, 1, 'DEF', 0, 'Packets12','t12', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 13, 1, 'DEF', 0, 'Packets18','t18', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 13, 1, 'DEF', 0, 'Packets24','t24', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 13, 1, 'DEF', 0, 'Packets36','t36', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 13, 1, 'DEF', 0, 'Packets48','t48', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 13, 1, 'DEF', 0, 'Packets54','t54', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 13, 2, 'CDEF', 0, 't1,t2,+,t5,+,t6,+,t9,+,t11,+,t12,+,t18,+,t24,+,t36,+,t48,+,t54,+', 'sum', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 13, 3, 'CDEF', 0, 't1,sum,/,100,*', 'p1', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 13, 3, 'CDEF', 0, 't2,sum,/,100,*', 'p2', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 13, 3, 'CDEF', 0, 't5,sum,/,100,*', 'p5', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 13, 3, 'CDEF', 0, 't6,sum,/,100,*', 'p6', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 13, 3, 'CDEF', 0, 't9,sum,/,100,*', 'p9', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 13, 3, 'CDEF', 0, 't11,sum,/,100,*', 'p11', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 13, 3, 'CDEF', 0, 't12,sum,/,100,*', 'p12', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 13, 3, 'CDEF', 0, 't18,sum,/,100,*', 'p18', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 13, 3, 'CDEF', 0, 't24,sum,/,100,*', 'p24', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 13, 3, 'CDEF', 0, 't36,sum,/,100,*', 'p36', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 13, 3, 'CDEF', 0, 't48,sum,/,100,*', 'p48', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 13, 3, 'CDEF', 0, 't54,sum,/,100,*', 'p54', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 13, 3, 'COMMENT', '0', 'Bit rate MBit/sec\\n', '', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 13, 4, 'AREA', 'FF3300', '1', 'p1', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 13, 5, 'STACK', 'FF6600', '2', 'p2', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 13, 6, 'STACK', 'FD9612', '5.5', 'p5', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 13, 7, 'STACK', 'e9b832', '6', 'p6', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 13, 8, 'STACK', 'd95ae4', '9', 'p9', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 13, 9, 'STACK', '7835c4', '11', 'p11', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 13, 10, 'STACK', '99ccff', '12', 'p12', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 13, 11, 'STACK', '378ee5', '18', 'p18', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 13, 12, 'STACK', '6666FF', '24', 'p24', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 13, 13, 'STACK', '07d09a', '36', 'p36', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 13, 14, 'STACK', '009933', '48', 'p48', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 13, 15, 'STACK', '00FF33', '54', 'p54', '');
+
+INSERT INTO graph_parts VALUES (DEFAULT, 14, 1, 'DEF', 0, 'Failed1','t1', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 14, 1, 'DEF', 0, 'Failed2','t2', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 14, 1, 'DEF', 0, 'Failed5','t5', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 14, 1, 'DEF', 0, 'Failed6','t6', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 14, 1, 'DEF', 0, 'Failed9','t9', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 14, 1, 'DEF', 0, 'Failed11','t11', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 14, 1, 'DEF', 0, 'Failed12','t12', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 14, 1, 'DEF', 0, 'Failed18','t18', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 14, 1, 'DEF', 0, 'Failed24','t24', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 14, 1, 'DEF', 0, 'Failed36','t36', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 14, 1, 'DEF', 0, 'Failed48','t48', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 14, 1, 'DEF', 0, 'Failed54','t54', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 14, 2, 'CDEF', 0, 't1,t2,+,t5,+,t6,+,t9,+,t11,+,t12,+,t18,+,t24,+,t36,+,t48,+,t54,+', 'sum', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 14, 3, 'CDEF', 0, 't1,sum,/,100,*', 'p1', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 14, 3, 'CDEF', 0, 't2,sum,/,100,*', 'p2', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 14, 3, 'CDEF', 0, 't5,sum,/,100,*', 'p5', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 14, 3, 'CDEF', 0, 't6,sum,/,100,*', 'p6', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 14, 3, 'CDEF', 0, 't9,sum,/,100,*', 'p9', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 14, 3, 'CDEF', 0, 't11,sum,/,100,*', 'p11', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 14, 3, 'CDEF', 0, 't12,sum,/,100,*', 'p12', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 14, 3, 'CDEF', 0, 't18,sum,/,100,*', 'p18', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 14, 3, 'CDEF', 0, 't24,sum,/,100,*', 'p24', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 14, 3, 'CDEF', 0, 't36,sum,/,100,*', 'p36', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 14, 3, 'CDEF', 0, 't48,sum,/,100,*', 'p48', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 14, 3, 'CDEF', 0, 't54,sum,/,100,*', 'p54', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 14, 3, 'COMMENT', '0', 'Bit rate MBit/sec\\n', '', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 14, 4, 'AREA', 'FF3300', '1', 'p1', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 14, 5, 'STACK', 'FF6600', '2', 'p2', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 14, 6, 'STACK', 'FD9612', '5.5', 'p5', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 14, 7, 'STACK', 'e9b832', '6', 'p6', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 14, 8, 'STACK', 'd95ae4', '9', 'p9', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 14, 9, 'STACK', '7835c4', '11', 'p11', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 14, 10, 'STACK', '99ccff', '12', 'p12', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 14, 11, 'STACK', '378ee5', '18', 'p18', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 14, 12, 'STACK', '6666FF', '24', 'p24', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 14, 13, 'STACK', '07d09a', '36', 'p36', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 14, 14, 'STACK', '009933', '48', 'p48', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 14, 15, 'STACK', '00FF33', '54', 'p54', '');
+
+INSERT INTO graph_parts VALUES (DEFAULT, 15, 1, 'DEF', 0, 'AvgTries1','t1', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 15, 1, 'DEF', 0, 'AvgTries2','t2', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 15, 1, 'DEF', 0, 'AvgTries5','t5', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 15, 1, 'DEF', 0, 'AvgTries6','t6', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 15, 1, 'DEF', 0, 'AvgTries9','t9', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 15, 1, 'DEF', 0, 'AvgTries11','t11', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 15, 1, 'DEF', 0, 'AvgTries12','t12', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 15, 1, 'DEF', 0, 'AvgTries18','t18', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 15, 1, 'DEF', 0, 'AvgTries24','t24', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 15, 1, 'DEF', 0, 'AvgTries36','t36', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 15, 1, 'DEF', 0, 'AvgTries48','t48', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 15, 1, 'DEF', 0, 'AvgTries54','t54', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 15, 2, 'CDEF', 0, 't1,100,/', 'p1', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 15, 2, 'CDEF', 0, 't2,100,/', 'p2', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 15, 2, 'CDEF', 0, 't5,100,/', 'p5', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 15, 2, 'CDEF', 0, 't6,100,/', 'p6', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 15, 2, 'CDEF', 0, 't9,100,/', 'p9', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 15, 2, 'CDEF', 0, 't11,100,/', 'p11', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 15, 2, 'CDEF', 0, 't12,100,/', 'p12', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 15, 2, 'CDEF', 0, 't18,100,/', 'p18', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 15, 2, 'CDEF', 0, 't24,100,/', 'p24', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 15, 2, 'CDEF', 0, 't36,100,/', 'p36', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 15, 2, 'CDEF', 0, 't48,100,/', 'p48', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 15, 2, 'CDEF', 0, 't54,100,/', 'p54', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 15, 2, 'COMMENT', '0', 'Bit rate MBit/sec\\n', '', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 15, 3, 'LINE2', 'FF3300', '1', 'p1', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 15, 4, 'LINE2', 'FF6600', '2', 'p2', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 15, 5, 'LINE2', 'FD9612', '5.5', 'p5', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 15, 6, 'LINE2', 'e9b832', '6', 'p6', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 15, 7, 'LINE2', 'd95ae4', '9', 'p9', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 15, 8, 'LINE2', '7835c4', '11', 'p11', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 15, 9, 'LINE2', '99ccff', '12', 'p12', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 15, 10, 'LINE2', '378ee5', '18', 'p18', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 15, 11, 'LINE2', '6666FF', '24', 'p24', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 15, 12, 'LINE2', '07d09a', '36', 'p36', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 15, 13, 'LINE2', '009933', '48', 'p48', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 15, 14, 'LINE2', '00FF33', '54', 'p54', '');
+
+INSERT INTO graph_parts VALUES (DEFAULT, 16, 1, 'DEF', 0, 'Packets1','t1', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 16, 1, 'DEF', 0, 'Packets2','t2', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 16, 1, 'DEF', 0, 'Packets5','t5', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 16, 1, 'DEF', 0, 'Packets6','t6', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 16, 1, 'DEF', 0, 'Packets9','t9', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 16, 1, 'DEF', 0, 'Packets11','t11', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 16, 1, 'DEF', 0, 'Packets12','t12', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 16, 1, 'DEF', 0, 'Packets18','t18', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 16, 1, 'DEF', 0, 'Packets24','t24', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 16, 1, 'DEF', 0, 'Packets36','t36', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 16, 1, 'DEF', 0, 'Packets48','t48', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 16, 1, 'DEF', 0, 'Packets54','t54', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 16, 2, 'CDEF', 0, 't1,t2,+,t5,+,t6,+,t9,+,t11,+,t12,+,t18,+,t24,+,t36,+,t48,+,t54,+', 'sum', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 16, 3, 'CDEF', 0, 't1,sum,/,100,*', 'p1', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 16, 3, 'CDEF', 0, 't2,sum,/,100,*', 'p2', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 16, 3, 'CDEF', 0, 't5,sum,/,100,*', 'p5', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 16, 3, 'CDEF', 0, 't6,sum,/,100,*', 'p6', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 16, 3, 'CDEF', 0, 't9,sum,/,100,*', 'p9', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 16, 3, 'CDEF', 0, 't11,sum,/,100,*', 'p11', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 16, 3, 'CDEF', 0, 't12,sum,/,100,*', 'p12', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 16, 3, 'CDEF', 0, 't18,sum,/,100,*', 'p18', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 16, 3, 'CDEF', 0, 't24,sum,/,100,*', 'p24', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 16, 3, 'CDEF', 0, 't36,sum,/,100,*', 'p36', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 16, 3, 'CDEF', 0, 't48,sum,/,100,*', 'p48', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 16, 3, 'CDEF', 0, 't54,sum,/,100,*', 'p54', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 16, 3, 'COMMENT', '0', 'Bit rate MBit/sec\\n', '', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 16, 4, 'AREA', 'FF3300', '1', 'p1', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 16, 5, 'STACK', 'FF6600', '2', 'p2', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 16, 6, 'STACK', 'FD9612', '5.5', 'p5', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 16, 7, 'STACK', 'e9b832', '6', 'p6', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 16, 8, 'STACK', 'd95ae4', '9', 'p9', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 16, 9, 'STACK', '7835c4', '11', 'p11', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 16, 10, 'STACK', '99ccff', '12', 'p12', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 16, 11, 'STACK', '378ee5', '18', 'p18', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 16, 12, 'STACK', '6666FF', '24', 'p24', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 16, 13, 'STACK', '07d09a', '36', 'p36', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 16, 14, 'STACK', '009933', '48', 'p48', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 16, 15, 'STACK', '00FF33', '54', 'p54', '');
+
+INSERT INTO graph_parts VALUES (DEFAULT, 17, 1, 'DEF', 0, 'Failed1','t1', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 17, 1, 'DEF', 0, 'Failed2','t2', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 17, 1, 'DEF', 0, 'Failed5','t5', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 17, 1, 'DEF', 0, 'Failed6','t6', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 17, 1, 'DEF', 0, 'Failed9','t9', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 17, 1, 'DEF', 0, 'Failed11','t11', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 17, 1, 'DEF', 0, 'Failed12','t12', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 17, 1, 'DEF', 0, 'Failed18','t18', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 17, 1, 'DEF', 0, 'Failed24','t24', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 17, 1, 'DEF', 0, 'Failed36','t36', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 17, 1, 'DEF', 0, 'Failed48','t48', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 17, 1, 'DEF', 0, 'Failed54','t54', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 17, 2, 'CDEF', 0, 't1,t2,+,t5,+,t6,+,t9,+,t11,+,t12,+,t18,+,t24,+,t36,+,t48,+,t54,+', 'sum', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 17, 3, 'CDEF', 0, 't1,sum,/,100,*', 'p1', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 17, 3, 'CDEF', 0, 't2,sum,/,100,*', 'p2', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 17, 3, 'CDEF', 0, 't5,sum,/,100,*', 'p5', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 17, 3, 'CDEF', 0, 't6,sum,/,100,*', 'p6', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 17, 3, 'CDEF', 0, 't9,sum,/,100,*', 'p9', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 17, 3, 'CDEF', 0, 't11,sum,/,100,*', 'p11', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 17, 3, 'CDEF', 0, 't12,sum,/,100,*', 'p12', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 17, 3, 'CDEF', 0, 't18,sum,/,100,*', 'p18', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 17, 3, 'CDEF', 0, 't24,sum,/,100,*', 'p24', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 17, 3, 'CDEF', 0, 't36,sum,/,100,*', 'p36', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 17, 3, 'CDEF', 0, 't48,sum,/,100,*', 'p48', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 17, 3, 'CDEF', 0, 't54,sum,/,100,*', 'p54', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 17, 3, 'COMMENT', '0', 'Bit rate MBit/sec\\n', '', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 17, 4, 'AREA', 'FF3300', '1', 'p1', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 17, 5, 'STACK', 'FF6600', '2', 'p2', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 17, 6, 'STACK', 'FD9612', '5.5', 'p5', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 17, 7, 'STACK', 'e9b832', '6', 'p6', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 17, 8, 'STACK', 'd95ae4', '9', 'p9', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 17, 9, 'STACK', '7835c4', '11', 'p11', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 17, 10, 'STACK', '99ccff', '12', 'p12', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 17, 11, 'STACK', '378ee5', '18', 'p18', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 17, 12, 'STACK', '6666FF', '24', 'p24', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 17, 13, 'STACK', '07d09a', '36', 'p36', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 17, 14, 'STACK', '009933', '48', 'p48', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 17, 15, 'STACK', '00FF33', '54', 'p54', '');
+
+INSERT INTO graph_parts VALUES (DEFAULT, 18, 1, 'DEF', 0, 'AvgTries1','t1', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 18, 1, 'DEF', 0, 'AvgTries2','t2', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 18, 1, 'DEF', 0, 'AvgTries5','t5', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 18, 1, 'DEF', 0, 'AvgTries6','t6', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 18, 1, 'DEF', 0, 'AvgTries9','t9', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 18, 1, 'DEF', 0, 'AvgTries11','t11', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 18, 1, 'DEF', 0, 'AvgTries12','t12', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 18, 1, 'DEF', 0, 'AvgTries18','t18', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 18, 1, 'DEF', 0, 'AvgTries24','t24', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 18, 1, 'DEF', 0, 'AvgTries36','t36', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 18, 1, 'DEF', 0, 'AvgTries48','t48', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 18, 1, 'DEF', 0, 'AvgTries54','t54', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 18, 2, 'CDEF', 0, 't1,100,/', 'p1', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 18, 2, 'CDEF', 0, 't2,100,/', 'p2', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 18, 2, 'CDEF', 0, 't5,100,/', 'p5', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 18, 2, 'CDEF', 0, 't6,100,/', 'p6', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 18, 2, 'CDEF', 0, 't9,100,/', 'p9', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 18, 2, 'CDEF', 0, 't11,100,/', 'p11', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 18, 2, 'CDEF', 0, 't12,100,/', 'p12', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 18, 2, 'CDEF', 0, 't18,100,/', 'p18', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 18, 2, 'CDEF', 0, 't24,100,/', 'p24', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 18, 2, 'CDEF', 0, 't36,100,/', 'p36', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 18, 2, 'CDEF', 0, 't48,100,/', 'p48', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 18, 2, 'CDEF', 0, 't54,100,/', 'p54', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 18, 2, 'COMMENT', '0', 'Bit rate MBit/sec\\n', '', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 18, 3, 'LINE2', 'FF3300', '1', 'p1', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 18, 4, 'LINE2', 'FF6600', '2', 'p2', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 18, 5, 'LINE2', 'FD9612', '5.5', 'p5', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 18, 6, 'LINE2', 'e9b832', '6', 'p6', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 18, 7, 'LINE2', 'd95ae4', '9', 'p9', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 18, 8, 'LINE2', '7835c4', '11', 'p11', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 18, 9, 'LINE2', '99ccff', '12', 'p12', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 18, 10, 'LINE2', '378ee5', '18', 'p18', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 18, 11, 'LINE2', '6666FF', '24', 'p24', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 18, 12, 'LINE2', '07d09a', '36', 'p36', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 18, 13, 'LINE2', '009933', '48', 'p48', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 18, 14, 'LINE2', '00FF33', '54', 'p54', '');
+
+
+INSERT INTO graph_parts VALUES (DEFAULT, 19, 1, 'DEF', 0, 'no-clients','noclients_max', 'MAX');
+INSERT INTO graph_parts VALUES (DEFAULT, 19, 1, 'DEF', 0, 'no-clients','noclients_min', 'MIN');
+INSERT INTO graph_parts VALUES (DEFAULT, 19, 2, 'LINE2', 'FF0000', 'Max Clients', 'noclients_max', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 19, 2, 'LINE2', '0000FF', 'Min Clients', 'noclients_min', '');
+
+INSERT INTO graph_parts VALUES (DEFAULT, 20, 1, 'DEF', 0, 'PHY','phy', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 20, 1, 'DEF', 0, 'CRC','crc', 'AVERAGE');
+INSERT INTO graph_parts VALUES (DEFAULT, 20, 2, 'LINE2', 'FF0000', 'PHY errors', 'phy', '');
+INSERT INTO graph_parts VALUES (DEFAULT, 20, 2, 'LINE2', '0000FF', 'CRC errors', 'crc', '');
+-- vim: ft=sql

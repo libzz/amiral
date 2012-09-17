@@ -1,0 +1,45 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+This template creates the Rlac Defaults File
+*#
+#attr $author = "Chris Browning <chris@rurallink.co.nz>"
+#attr $version = "$Id: rlac_default.tmpl 1243 2006-12-18 20:17:58Z mglb1 $"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "rlac_default"
+#attr $serviceName = "rlac"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+#
+# CRCnet BiscuitPC HostAPd Defaults File
+#
+# This file was automatically generated on the date below, DO NOT EDIT
+# $Date$
+
+# Additional daemon options
+#       -l   lns address
+#       -d   daemonise
+# the remaining args are interfaces to use for pppoe
+# 
+!set %rlac = %service["rlac"]
+!set %ifaces = ""
+
+!for %name,%iface in %interfaces.items()
+!if not %iface.interface_active
+    !continue
+!end if
+!set %auth = %rlac.rlacInterfaceEnabled(%session_id, %iface.interface_id)
+!if %auth
+    !set %ifaces += " " + %name
+!end if
+!end for
+DAEMON_OPTS="-d -l %rlac.lns.ip_address%ifaces"

@@ -1,0 +1,62 @@
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $multiFile = True
+#attr $fileName = "loopback_dns_r"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#from crcnetd._utils.ccsd_common import ipnum, inNetwork, cidrToNetwork, cidrToNetmask, cidrToNetworkS
+#extends ccs_template
+#compiler-settings
+cheetahVarStartToken = %
+EOLSlurpToken = ^^^
+#end compiler-settings 
+## Initialise link_class host lists
+#for %id,%lc in %link_classes.items()
+    #silent %link_classes[%id]["hosts"] = {}
+#end for
+## Loop through hosts and assign each loopback IP to a link class
+#for %host_name,%host in %hosts.items()
+    #if len(%host.ip_address) <= 0
+        #continue
+    #end if
+    #for %id,%lc in %link_classes.items()
+        #if len(%lc.netblock) <= 0
+            #continue
+        #end if
+        #if inNetwork(ipnum(%host.ip_address), cidrToNetwork(%lc.netblock), cidrToNetmask(%lc.netblock))
+            #silent %link_classes[%id]["hosts"][%host.ip_address] = %host_name
+        #end if
+    #end for
+#end for
+## Now generate an output file for each class
+#for %id, %lc in %link_classes.items()
+    #if len(%lc.hosts) <= 0
+        #continue
+    #end if 
+    #if len(%lc.netblock) <= 0
+        #continue
+    #end if
+    #set %tmp = cidrToNetworkS(%lc.netblock)
+.newfile -%tmp
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+; Reverse DNS records for host loopback (Administrative) addresses
+; in the %lc.netblock (%lc.description) network
+; $Date$
+; 
+; WARNING: Do not modify this file since it is automatically
+;          generated.
+;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    #set %hlist = %lc.hosts.keys()
+    #silent %hlist.sort()
+    #for %ip_address in %hlist
+        #set %hname = %lc.hosts[%ip_address]
+        #set %tmp = %ip_address.split(".")
+        #silent %tmp.reverse()
+        #set %rev = ".".join(%tmp)
+%{rev}.in-addr.arpa.    IN      PTR     %{hname}.%domain.
+    #end for
+#end for

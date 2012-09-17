@@ -1,0 +1,58 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+This template generates the CFengine configuration to manage the firewall
+*#
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "cf.hostfirewall"
+#attr $serviceName = "firewall"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict with CFengine
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+#############################################################
+#
+# cf.hostfirewall -- for %host_name.%domain 
+# $Date$
+#
+# This file links interfaces on a host to their specific 
+# firewall configuration
+# 
+# WARNING: Do not modify this file since it is automatically
+#          generated
+#
+#############################################################
+
+###########
+#
+# BEGIN cf.hostfirewall
+#
+###########
+
+links:
+
+    any::
+
+        # Loopback interface
+        /etc/firewall/interfaces.d/lo.if ->! ../classes.d/loopback 
+        /etc/firewall/interfaces.d/dummy0.if ->! ../classes.d/loopback 
+
+        # Configuration system managed interfaces
+!for %iface,%fclass in %service.firewall.interfaces.items()
+        /etc/firewall/interfaces.d/%{iface}.if ->! ../classes.d/%fclass
+!end for
+
+###########
+#
+# END cf.hostfirewall
+#
+###########

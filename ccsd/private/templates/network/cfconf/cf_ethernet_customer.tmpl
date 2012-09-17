@@ -1,0 +1,63 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+This template generates the CFengine configuration to manage the ethernet customers
+*#
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "cf.ethernet_customer"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict with CFengine
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+!set %ethernet = %services["ethernet_customer"]
+#############################################################
+#
+# cf.ethernet_customer -- for %domain 
+# $Date$
+#
+# Configures the provision of services for ethernet based
+# customers.
+#
+# WARNING: Do not modify this file since it is automatically
+#          generated
+#
+#############################################################
+
+###########
+#
+# BEGIN cf.ethernet_customer
+#
+###########
+
+control:
+
+    any::
+
+        # Classes that may become defined as we proceed
+        AddInstallable = ( restart_crcnet_monitor )
+        
+    restart_crcnet_monitor::
+        autodefine = ( /etc/ccsd/accounting_users )
+    
+copy:
+
+    any::
+
+        # Copy the user mapping files
+        $(host_config)/accounting_users dest=/etc/ccsd/accounting_users
+            mode=0640 server=$(policyhost) type=sum owner=root group=root
+
+###########
+#
+# END cf.ethernet_customer
+#
+###########

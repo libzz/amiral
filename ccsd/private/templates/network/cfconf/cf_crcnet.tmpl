@@ -1,0 +1,107 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+This template sets up configuration specific to the crcnet distribution
+*#
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "cf.crcnet"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict with CFengine
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+################################################################
+#
+# cf.crcnet -- for %domain
+# $Date$
+#
+# This file contains distribution specific setup for CRCnet
+# Distribution Hosts (eg. Hosts running Debian Sarge with just
+# a few CRCnet specific packages)
+#
+# These machines are typically servers, so less configuration is
+# performed than we usually would with a biscuit PC.
+#
+# WARNING: Do not modify this file since it is automatically
+#          generated
+#
+################################################################
+
+###########
+#
+# BEGIN cf.crcnet
+#
+###########
+
+groups:
+
+control:
+
+    any::
+
+        # Directory containing crcnet specific configuration files
+        crcnet_config = ( $(master_cfinput)/crcnet )
+        
+packages:
+
+    any::
+
+        # Check some crucial packages are installed
+        ssh pkgmgr=dpkg action=install ifelapsed=120
+
+        # tcpdump is used pretty much everywhere too
+        tcpdump pkgmgr=dpkg action=install ifelapsed=120
+
+        # When managing SSH via cfengine we need to install libpam-umask
+        # to explicitly set users umasks as cfengine starts ssh with a
+        # umask of 077 which is not particularly desirable
+        libpam-umask pkgmgr=dpkg action=install ifelapsed=120
+
+copy:
+
+    any::
+        
+        # Basic machine configuration
+        $(host_config)/hosts dest=/etc/hosts mode=0644
+            server=$(policyhost) type=sum owner=root group=root
+
+        # SSH Configuration
+        $(crcnet_config)/sshd_config dest=/etc/ssh/sshd_config mode=0644
+            server=$(policyhost) type=sum owner=root group=root
+            define=restart_ssh
+
+shellcommands:
+
+    any::
+    
+    restart_ssh::
+        "/etc/init.d/ssh restart"
+
+    dist_upgrade::
+        "/usr/bin/apt-get update"
+        "/usr/bin/apt-get -y -o Dpkg::Options::=$(quote)--force-confold$(quote) dist-upgrade"
+
+editfiles:
+
+    any::
+        # Default user umask is 022. This needs to be set explicitly because
+        # when cfengine restarts ssh it inherits a umask of 077. If we don't
+        # override that here, scp'd files end up with permisisions 400!
+        { /etc/pam.d/common-session
+            SetLine "session optional   pam_umask.so umask=022"
+            AppendIfNoLineMatching "^session.*pam_umask\.so.*$"
+        }
+
+###########
+#
+# END cf.crcnet
+#
+###########

@@ -1,0 +1,26 @@
+-- 
+-- PostgreSQL schema for BIND Service
+--
+-- Author:   Matt Brown  <matt@crc.net.nz>
+-- Version:  $Id$
+--
+
+-- link class properties
+CREATE TABLE bind_link_class_reverse (
+    link_class_id integer   NOT NULL REFERENCES link_class (link_class_id)
+                                ON DELETE CASCADE,
+    no_rdns     boolean     NOT NULL
+);
+
+-- DNS servers
+CREATE TABLE dns_server (
+    dns_server_id   SERIAL      PRIMARY KEY,
+    host_id         integer     NOT NULL REFERENCES host (host_id) 
+                                ON DELETE CASCADE,
+    is_master       boolean     NOT NULL, 
+    dns_ip_address  inet
+);
+CREATE VIEW dns_server_info AS SELECT d.*, h.host_name, h.ip_address FROM
+    dns_server d, host h WHERE d.host_id=h.host_id;
+
+-- vim: ft=sql

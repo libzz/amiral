@@ -1,0 +1,34 @@
+Source: ccsd
+Section: admin
+Priority: optional
+Maintainer: Matt Brown <matt@crc.net.nz>
+Build-Depends: debhelper (>= 4.0.0)
+Standards-Version: 3.6.1
+
+Package: ccsd
+Architecture: all
+Depends: ${shlibs:Depends}, ${misc:Depends}, python2.4, python2.4-twisted, python2.4-pyopenssl, python2.4-pgsql, python2.4-svn, python2.4-cheetah, dbconfig-common, ucf, subversion, cfengine2 (= 2.1.14-1sarge1crcnet1), postgresql-client, openssl
+Description: CRCnet Configuration System Daemon
+ The CRCnet Configuration System is a project to build a flexible, full
+ featured configuration system tailored to a rural wireless network. The
+ ultimate aim of the configuration system, is to reduce the administrative
+ overhead to a level where the day to day maintenance of the network can be
+ performed by moderately skilled users.
+ .
+ The configuration system is tightly integrated with CFengine and will take
+ control of the operation of CFengine on the machine.
+ .
+ This package provides the server component of the CRCnet Configuration
+ System.
+ .
+ Homepage: http://www.wand.net.nz/trac/ccs
+
+Package: crcnet-monitor
+Architecture: all
+Depends: $(shlibs:Depends}, $(misc:Depends}, python2.4 | python2.4-minimal
+Description: CRCnet Configuration System Client
+ This daemon runs on hosts on a network managed by the CRCnet Configuration
+ System and provides a range of monitoring and management services through
+ extensible plugin modules. 
+ .
+ Homepage: http://www.wand.net.nz/trac/ccs

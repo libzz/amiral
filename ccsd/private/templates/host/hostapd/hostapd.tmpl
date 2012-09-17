@@ -1,0 +1,95 @@
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id: clients_conf.tmpl 1134 2006-11-21 03:10:34Z mglb1 $"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $multiFile = True
+#attr $serviceName = "hostapd"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#from crcnetd.modules.ccs_asset import ccs_subasset
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+!set %hostapd = %services["hostapd"]
+!set %radius = %services["radius"]
+!for %name,%iface in %interfaces.items()
+!if not %iface.interface_active
+    !continue
+!end if
+!set %auth = %hostapd.interfaceEnabled(%session_id, %iface.interface_id)
+!if not %auth
+    !continue
+!end if
+!set %sa = ccs_subasset(%session_id, %iface.subasset_id)
+.newfile -%{name}.conf
+#############################################################
+#
+# hostapd-%{name}.conf -- HostAP configuration for %domain
+# $Date$
+# 
+# WARNING: Do not modify this file since it is automatically
+#          generated.
+#
+#############################################################
+
+interface=%name
+!if %sa is not None and %sa.supportsFunction("vap")
+driver=madwifi
+!else
+driver=hostap
+!end if
+logger_syslog=31
+logger_syslog_level=2
+logger_stdout=-1
+logger_stdout_level=2
+debug=0
+ctrl_interface=/var/run/hostapd-%name
+ctrl_interface_group=0
+
+##### IEEE 802.11 related configuration #####################
+ssid=%iface.essid
+max_num_sta=255
+macaddr_acl=0
+auth_algs=3
+
+##### IEEE 802.1X-2004 related configuration ################
+ieee8021x=1
+eap_message=hello\0networkid=netw,nasid=%host_name.%domain,NAIRealms=%domain
+eapol_key_index_workaround=0
+!if %auth == 1
+external_callback_script=/usr/bin/setup_cpe
+
+##### Integrated EAP server ###################################################
+eap_server=0
+
+##### RADIUS client configuration #############################################
+own_ip_addr=%ip_address
+nas_identifier=%host_name.%domain
+auth_server_addr=%radius.auth_ip
+auth_server_port=%radius.auth_port
+auth_server_shared_secret=%radius["clients"][%host_name].secret
+acct_server_addr=%radius.acct_ip
+acct_server_port=%radius.acct_port
+acct_server_shared_secret=%radius["clients"][%host_name].secret
+!elif %auth == 2
+
+##### Integrated EAP server ###################################################
+eap_server=1
+eap_user_file=/etc/hostapd/eap_user
+ca_cert=/etc/ssl/certs/cacert.pem
+server_cert=/etc/ssl/certs/cert.pem
+private_key=/etc/ssl/private/key.pem
+private_key_passwd=
+check_crl=0
+!end if
+
+##### WPA/IEEE 802.11i configuration ##########################################
+wpa=1
+wpa_key_mgmt=WPA-EAP
+wpa_pairwise=CCMP
+!end for

@@ -1,0 +1,33 @@
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "interface_dns_f"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+cheetahVarStartToken = %
+#end compiler-settings 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+; Forward DNS records for interface addresses
+; $Date$
+; 
+; WARNING: Do not modify this file since it is automatically
+;          generated.
+;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+#set %names = %hosts.keys()
+#silent %names.sort()
+#for %host_name in %names
+    #set %host = %hosts[%host_name]
+    #set ifnames = %host.interfaces.keys()
+    #silent %ifnames.sort()
+    #for %ifname in %ifnames
+        #set %iface = %host.interfaces[%ifname]
+        #if len(%iface.ip_address) > 0
+%{host_name}-%ifname	IN	A	%iface.ip_address
+        #end if
+    #end for
+#end for

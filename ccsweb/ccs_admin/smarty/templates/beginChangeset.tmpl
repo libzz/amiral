@@ -1,0 +1,31 @@
+{assign var="sheets" value=()}
+{assign var="scripts" value=()}
+{include file="header.tpl" title="CRCnet Configuration System - Begin Changeset" sheets=$sheets scripts=$scripts}
+
+{if $changesets > 0}
+{if $changesets==1}
+<b>WARNING</b> There is another active changeset 
+{else}
+<b>WARNING</b> There are {$changesets} other active changesets 
+{/if}
+currently accessing the configuration database. If you make changesets that
+conflict with these changesets your changeset may be cancelled when you come
+to commit it.<br\n>
+It is recommended that the wait until the other changeset(s) have been
+committed before beginning unless you are certain that your changes will not
+conflict with those being made by other users.<br\>
+<br\>
+{/if}
+<form action="{$page}" method="post">
+<input type="hidden" name="confirm" value="yes">
+<table cellpadding=0 cellspacing=2 border=0>
+<tr>
+    <td colspan=2>
+    <input type="submit" value="Create Changeset &gt;&gt;" name="login">
+    </td>
+</tr>
+</table>
+</form>
+</div>
+
+{include file="footer.tpl"}

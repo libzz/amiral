@@ -1,0 +1,86 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+*#
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+cheetahVarStartToken = !!!
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+#!/usr/bin/python2.4
+# Copyright (C) 2006  The University of Waikato
+#
+# Detects interfaces using madwifi drivers, shuts them down, reloads the drivers
+# and then brings them back up again
+#
+# Author:       Matt Brown <matt@crc.net.nz>
+# Version:      $Id$
+import sys
+import os
+sys.path.append("/usr/share/ccsd")
+
+try:
+    from crcnetd._utils.interfaces import debian_interfaces
+except:
+    print "E: Cannot load debian interfaces class. crcnet-monitor required!"
+    sys.exit(1)
+
+# List of interfaces to deal with
+interfaces = {}
+
+# Find madwifi interfaces
+ifaces = debian_interfaces()
+for ifname, iface in ifaces.items():
+    # Skip non madwifi interfaces
+    if "madwifi_base" not in iface.keys(): continue
+    # Store details
+    interfaces[ifname] = {}
+    # Is interface up?
+    fd = os.popen("/sbin/ip link show dev %s" % ifname, "r")
+    state = fd.read()
+    fd.close()
+    if state.find("UP") == -1:
+        interfaces[ifname] = False
+        print "I: will leave VAP '%s' in the down state" % ifname
+    else:
+        interfaces[ifname] = True
+        # Take interface down
+        os.system("/sbin/ifdown --force %s &>/dev/null" % ifname)
+        print "I: Took down madwifi VAP '%s'" % ifname
+
+print "I: %d interfaces to bring up again" % len(interfaces)
+
+# Remove the old modules
+os.system("/sbin/rmmod wlan_scan_ap")
+os.system("/sbin/rmmod wlan_scan_sta")
+os.system("/sbin/rmmod ath_pci")
+os.system("/sbin/rmmod ath_rate_sample")
+os.system("/sbin/rmmod ath_rate_onoe")
+os.system("/sbin/rmmod ath_rate_amrr")
+os.system("/sbin/rmmod wlan_xauth")
+os.system("/sbin/rmmod wlan_ccmp")
+os.system("/sbin/rmmod wlan_acl")
+os.system("/sbin/rmmod wlan")
+os.system("/sbin/rmmod ath_hal")
+print "I: madwifi modules removed"
+
+# Load the modules again
+os.system("/sbin/modprobe ath_pci")
+print "I: ath_pci modprobed"
+
+# Bring the interfaces back up
+for ifname, bringup in interfaces.items():
+    if not bringup:
+        print "I: Leaving VAP '%s' down" % ifname
+    os.system("/sbin/ifup %s &>/dev/null" % ifname)
+    print "I: Brougth VAP '%s' back up" % ifname
+
+# Done
+sys.exit(0)

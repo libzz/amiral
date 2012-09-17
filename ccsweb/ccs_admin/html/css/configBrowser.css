@@ -1,0 +1,423 @@
+/* Styles for tabular listings such as those used for displaying directory
+   contents and report results. */
+#configBrowser table.listing {
+ clear: both;
+ border-bottom: 1px solid #d7d7d7;
+ border-collapse: collapse;
+ border-spacing: 0;
+ margin-top: 1em;
+ width: 100%;
+}
+#configBrowser table.listing th { 
+    text-align: left; 
+    padding: 0 1em .1em 0;
+    font-size: 12px;
+    background-color: transparent;
+}
+#configBrowser table.listing thead { background: #f7f7f0 }
+#configBrowser table.listing thead th {
+ border: 1px solid #d7d7d7;
+ border-bottom-color: #999;
+ font-size: 11px;
+ font-weight: bold;
+ padding: 2px .5em;
+ vertical-align: bottom;
+}
+#configBrowser table.listing thead th :link:hover, 
+#configBrowser table.listing thead th :visited:hover {
+ background-color: transparent;
+}
+#configBrowser table.listing thead th a { border: none; padding-right: 12px }
+#configBrowser table.listing th.asc a, 
+#configBrowser table.listing th.desc a {
+ font-weight: bold;
+ background-position: 100% 50%;
+ background-repeat: no-repeat;
+}
+#configBrowser table.listing th.asc a { 
+    background-image: url(/img/browser/asc.png);
+}
+#configBrowser table.listing th.desc a { 
+    background-image: url(/img/browser/desc.png);
+}
+#configBrowser table.listing tbody td, 
+#configBrowser table.listing tbody th {
+ border: 1px dotted #ddd;
+ padding: .33em .5em;
+ vertical-align: top;
+ font-size: 13px;
+}
+#configBrowser table.listing tbody td a:hover, 
+#configBrowser table.listing tbody th a:hover {
+ background-color: transparent;
+}
+#configBrowser table.listing tbody tr { border-top: 1px solid #ddd }
+#configBrowser table.listing tbody tr.even { background-color: #fcfcfc }
+#configBrowser table.listing tbody tr.odd { background-color: #f7f7f7 }
+#configBrowser table.listing tbody tr:hover { background: #eed !important }
+
+div.code {
+ background: #f7f7f7;
+ border: 1px solid #d7d7d7;
+ margin: 1em 1.75em;
+ padding: .25em;
+ overflow: auto
+}
+
+table.code {
+ border: 1px solid #ddd;
+ border-spacing: 0;
+ border-top: 0;
+ empty-cells: show;
+ font-size: 12px;
+ line-height: 130%;
+ padding: 0;
+ margin: 0 auto;
+ table-layout: fixed;
+ width: 100%;
+}
+table.code th {
+ border-right: 1px solid #d7d7d7;
+ border-bottom: 1px solid #998;
+ font-size: 11px;
+}
+table.code th.lineno { width: 4em }
+table.code thead th {
+ background: #eee;
+ border-top: 1px solid #d7d7d7;
+ color: #999;
+ padding: 0 .25em;
+ text-align: center;
+ white-space: nowrap;
+}
+table.code tbody th {
+ background: #eed;
+ color: #886;
+ font-weight: normal;
+ padding: 0 .5em;
+ text-align: right;
+ vertical-align: top;
+}
+table.code tbody th :link, table.code tbody th :visited {
+ border: none;
+ color: #886;
+ text-decoration: none;
+}
+table.code tbody th :link:hover, table.code tbody th :visited:hover {
+ color: #000;
+}
+table.code tbody td {
+ background: #fff;
+ font: normal 11px monospace;
+ overflow: hidden;
+ padding: 1px 2px;
+ vertical-align: top;
+ white-space: pre;
+}
+
+.image-file { background: #eee; padding: .3em }
+.image-file img { background: url(../imggrid.png) }
+
+/* Default */
+.code-block span {
+ font-family: monospace;
+}
+
+/* Comments */
+.code-comment, .css_comment, .c_comment, .c_commentdoc, .c_commentline,
+.c_commentlinedoc, .h_comment,.pl_commentline, .p_commentblock,
+.p_commentline, .hphp_commentblock, .hphp_commentline,
+.yaml_comment {
+ color: #998; 
+ font-style: italic;
+}
+
+/* Language keyword */
+.code-keyword, .pl_word  { color: #789; font-weight: bold }
+
+/* Type */
+.code-type, .c_word, .c_word2, .p_classname, .hphp_classname{
+ color: #468;
+ font-weight: bold;
+}
+
+/* Function */
+.code-func, .p_defname {
+ color: #900;
+ font-weight: bold;
+ border-bottom: none;
+}
+
+/* Pre-processor */
+.code-prep, .c_preprocessor, .pl_preprocessor, .yaml_identifier {
+ color: #999;
+ font-weight: bold;
+}
+
+/* Language construct */
+.code-lang, .p_word { color: #000; font-weight: bold }
+
+/* String */
+.code-string, .c_string, .c_stringeol, .css_doublestring, .css_singlestring,
+.h_singlestring, .h_doublestring, .pl_string, .pl_string_q, .pl_string_qq,
+.pl_string_qr, .pl_string_qw, .pl_string_qx, .pl_backticks, .pl_character,
+.p_string, .p_stringeol, .hphp_string, .hphp_stringeol, .hphp_triple,
+.hphp_tripledouble, .p_character, .p_triple, .p_tripledouble {
+ color: #b84;
+ font-weight: normal;
+}
+
+/* Variable name */
+.code-var { color: #f9f }
+
+/* SilverCity-specific styles */
+.css_id, .css_class, .css_pseudoclass, .css_tag { color: #900000 }
+.css_directive { color: #009000; font-weight: bold }
+.css_important { color: blue }
+.css_operator { color: #000090; font-weight: bold }
+.css_tag { font-weight: bold }
+.css_unknown_identifier, .css_unknown_pseudoclass { color: red }
+.css_value { color: navy }
+.c_commentdockeyword { color: navy; font-weight: bold }
+.c_commentdockeyworderror { color: red; font-weight: bold }
+.c_character, .c_regex, .c_uuid, .c_verbatim { color: olive }
+.c_number { color: #099 }
+.h_asp { color: #ff0 }
+.h_aspat { color: #ffdf00 }
+.h_attribute { color: teal }
+.h_attributeunknown { color: red }
+.h_cdata { color: #ffdf00 }
+.h_entity { color: purple }
+.h_number { color: #099 }
+.h_other { color: purple }
+.h_script, .h_tag, .h_tagend { color: navy }
+.h_tagunknown { color: red }
+.h_xmlend, .h_xmlstart { color: blue }
+.pl_datasection { color: olive }
+.pl_error { color: red; font-weight: bold }
+.pl_hash { color: #000 }
+.pl_here_delim, .pl_here_q, .pl_here_qq, .pl_here_qx, .pl_longquote { color: olive }
+.pl_number { color: #099 }
+.pl_pod { font-style: italic }
+.pl_regex, .pl_regsubst { color: olive }
+.p_number { color: #099 }
+.hphp_character { color: olive }
+.hphp_defname { color: #099; font-weight: bold }
+.hphp_number { color: #099 }
+.hphp_word { color: navy; font-weight: bold }
+.yaml_document { color: gray; font-style: italic }
+.yaml_keyword { color: #808 }
+.yaml_number { color: #800 }
+.yaml_reference { color: #088 }
+.v_comment { color: gray; font-style: italic }
+.v_commentline, .v_commentlinebang { color: red; font-style: italic }
+.v_number, .v_preprocessor { color: #099 }
+.v_string, .v_stringeol { color: olive }
+.v_user{ color: blue; font-weight: bold }
+.v_word, .v_word3 { color: navy; font-weight: bold }
+.v_word2 { color: green; font-weight: bold }
+
+#configBrowser #ctxtnav { height: 1em }
+#configBrowser #ctxtnav ul { 
+    font-size: 10px; 
+    list-style: none; 
+    margin: 0; 
+    text-align: right 
+}
+#configBrowser #ctxtnav li { padding: 0; }
+#configBrowser #ctxtnav A {
+ text-decoration: none;
+ border-bottom: 1px dotted #ccc;
+}
+#configBrowser #ctxtnav A:link:hover, 
+#configBrowser #ctxtnav A:visited:hover {
+ background: #eee;
+ color: #555; 
+ text-decoration: none;
+ border-bottom: 1px dotted #ccc;
+}
+
+#configBrowser #prefs { margin-top: -1.6em }
+* html #configBrowser #prefs { width: 34em } /* Set width only for IE */
+#configBrowser #prefs fieldset label { display: block }
+#configBrowser #prefs .buttons { margin-top: -1.6em }
+#configBrowser #prefs .choice { margin-top: -0.6em }
+
+#legend { clear: right; }
+
+/* Browser */
+#configBrowser h1 { 
+    margin: 0; 
+    padding: 0 0 .2em;
+    border-bottom: 1px dotted #225599;
+    text-align: left;
+}
+#configBrowser h1 :link, 
+#configBrowser h1 :visited, 
+#configBrowser h1 .filename { 
+    border: none; 
+    padding: 0 .2em 
+}
+#configBrowser h1 :link, 
+#configBrowser h1 :visited { color: #b00 }
+#configBrowser h1 .first:link, 
+#configBrowser h1 .first:visited { color: #998 }
+#configBrowser h1 .sep { color: #666; padding: 0 .1em }
+
+#configBrowser #jumprev { 
+    float: right; 
+    font-size: 10px;
+    margin: 0;
+    margin-top: 5px;
+    margin-bottom: 5px;
+}
+#configBrowser #jumprev form { 
+    margin: 0 
+}
+#configBrowser #jumprev input { 
+    font-size: 10px; 
+    margin-right: 0;
+}
+
+/* Styles for the directory entries table
+   (extends the styles for "table.listing") */
+#configBrowser #dirlist { 
+    margin-top: 0 
+}
+#configBrowser #dirlist td.rev, 
+#configBrowser #dirlist td.age, 
+#configBrowser #dirlist td.change {
+ color: #888;
+ white-space: nowrap;
+}
+#configBrowser #dirlist td.size {  
+ color: #888;
+ white-space: nowrap;
+ text-align: right;
+ vertical-align: middle;
+ font-size: 70%;
+}
+#configBrowser #dirlist td.name { width: 100% }
+#configBrowser #dirlist td.name a,
+#configBrowser #dirlist td.name span {
+ background-position: 0% 50%;
+ background-repeat: no-repeat;
+ padding-left: 20px;
+}
+#configBrowser #dirlist td.name a.parent { 
+    background-image: url(/img/browser/parent.png) 
+}
+#configBrowser #dirlist td.name a.dir { 
+    background-image: url(/img/browser/folder.png) 
+}
+#configBrowser #dirlist td.name span.dir { 
+    background-image: url(/img/browser/folderdeny.png) 
+}
+#configBrowser #dirlist td.name a.file { 
+    background-image: url(/img/browser/file.png) 
+}
+#configBrowser #dirlist td.name span.file { 
+    background-image: url(/img/browser/filedeny.png) 
+}
+#configBrowser #dirlist td.name a, 
+#configBrowser #dirlist td.rev a { 
+    border-bottom: none; 
+    display: block 
+}
+#configBrowser #dirlist td.rev { text-align: right }
+#configBrowser #dirlist td.change { 
+    font-size: 85%; 
+    vertical-align: middle; 
+    white-space: nowrap 
+}
+
+/* Styles for the revision log table
+   (extends the styles for "table.listing") */
+#configBrowser #chglist { margin-top: 0 }
+#configBrowser #chglist td.change span { 
+ border: 1px solid #999;
+ display: block;
+ margin: .2em .5em 0 0;
+ width: .8em; height: .8em;
+}
+#configBrowser #chglist td.change .comment { display: none }
+#configBrowser #chglist td.old_path { font-style: italic }
+#configBrowser #chglist td.date { 
+    font-size: 85%; 
+    vertical-align: top; 
+    padding-top: 0.55em; 
+    white-space: nowrap 
+}
+#configBrowser #chglist td.author { 
+    font-size: 85%;
+    vertical-align: top;
+    padding-top: 0.55em 
+}
+#configBrowser #chglist td.rev,
+#configBrowser #chglist td.chgset { 
+    text-align: right 
+}
+#configBrowser #chglist td.rev a,
+#configBrowser #chglist td.chgset a {
+    border-bottom: none 
+}
+#configBrowser #chglist td.summary {
+    width: 100%;
+    font-size: 85%;
+    vertical-align: middle;
+    white-space: nowrap 
+}
+#configBrowser #chglist td.summary * {
+    margin-top: 0;
+    margin-bottom: 0 
+}
+
+#configBrowser #paging { margin: 1em 0 }
+
+/* Styles for the revision info in the file view */
+#configBrowser #info {
+ background: #f7f7f0;
+ border: 1px solid #d7d7d7;
+ border-collapse: collapse;
+ border-spacing: 0;
+ clear: both;
+ width: 100%;
+}
+#configBrowser #info th,
+#configBrowser #info td { 
+    /*font-size: 85%; */
+    padding: 2px .5em; 
+    vertical-align: top;
+    background-color: transparent;
+}
+#configBrowser #info th { 
+    font-weight: bold; 
+    white-space: nowrap; 
+}
+#configBrowser #info td.message { width: 100%; }
+#configBrowser #info .message ul { padding: 0; margin: 0 2em }
+#configBrowser #info .message p { margin: 0; padding: 0 }
+#configBrowser #info .props {
+ color: #666;
+ list-style: square;
+ margin: 0 0 .4em 1.6em;
+ padding: 0;
+}
+#configBrowser #info .props li { padding: 0 }
+#configBrowser #info A {
+ text-decoration: none;
+ border-bottom: 1px dotted #ccc;
+}
+#configBrowser #info A:link:hover, 
+#configBrowser #info A:visited:hover {
+ background: #eee;
+ color: #555; 
+ text-decoration: none;
+ border-bottom: 1px dotted #ccc;
+}
+
+/* Styles for the HTML preview */
+#configBrowser #preview { background: #fff; clear: both; margin: 0 }
+#configBrowser #preview .code-block { border-top: 1px solid #999; margin: 0 }
+#configBrowser #preview .image-file { overflow: hidden }
+#configBrowser #preview .image-file img { max-width: 100% }

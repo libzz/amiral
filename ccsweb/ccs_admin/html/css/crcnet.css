@@ -1,0 +1,378 @@
+/* Copyright (C) 2006  The University of Waikato
+ *
+ * This file is part of ccsweb - CRCnet Configuration System Web Interface
+ *
+ * CRCnet Configuration System Style Definitions
+ *
+ * Author:       Matt Brown <matt@crc.net.nz>
+ * Version:      $Id$
+ *
+ * ccsweb is free software; you can redistribute it and/or modify it under the
+ * terms of the GNU General Public License version 2 as published by the Free
+ * Software Foundation.
+ *
+ * ccsweb is distributed in the hope that it will be useful, but WITHOUT ANY
+ * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
+ * details.
+ *
+ * You should have received a copy of the GNU General Public License along with
+ * ccsweb; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+ */
+img {
+	border: 0px;
+	margin: 0px;
+}
+
+a:link {
+	background: transparent;
+	color: #225599;
+	text-decoration: none;
+}
+a:visited {
+	background: transparent;
+	color: #225599;
+	text-decoration: none;
+}
+a:hover {
+	background: transparent;
+	/*color: #3377FF;*/
+	color: #0044FF;
+	text-decoration: underline;
+}
+a:active {
+	background: transparent;
+	color: red;
+	text-decoration: underline;
+}
+a.hidden:link {
+	background: transparent;
+	color: #777777;
+	text-decoration: none;
+}
+a.hidden:visited {
+	background: transparent;
+	color: #777777;
+	text-decoration: none;
+}
+a.hidden:hover {
+	background: transparent;
+	color: blue;
+	text-decoration: underline;
+}
+a.hidden:active {
+	background: transparent;
+	color: blue;
+	text-decoration: underline;
+}
+
+body {
+	background: #dddddd;
+	color: black;
+	padding: 0px;
+	margin: 0px;
+	font-family: sans-serif;	
+    font-size: 11px;
+}
+h1 {
+	font-size: 14px;
+	text-align: right;
+    margin: 0px;
+	border-bottom: 1px solid red;
+	font-family: sans-serif;
+    white-space: nowrap;
+    margin-bottom: 10px;
+}
+h2 {
+	font-size: 13px;
+	margin: 0px;
+	border-bottom: 1px solid red;
+	font-family: sans-serif;
+	white-space: nowrap;
+}
+h3 {
+	font-size: 13px;
+	margin: 0px;
+    margin-bottom: 5px;
+	border-bottom: 1px dotted red;
+	font-family: sans-serif;
+	white-space: nowrap;
+}
+div.menu {
+	background: white;
+	color: black;
+	padding-left: 30px;
+	padding-right: 30px;
+	padding-top: 15px;
+	padding-bottom: 15px;
+	margin: 10px;
+	border: 1px solid gray;
+	margin-right: 0px;
+	-moz-border-radius: 15pt;
+}
+div.header {
+	background: white;
+	color: black;
+	border-bottom: 1px solid #ababab;
+}
+#loginbar {
+    background: #eeeeee;
+    color: black;
+    font-size: 11px;
+    vertical-align: middle;
+    border-top: 1px solid black;
+    border-bottom: 2px solid red;
+    padding-top: 3px;
+    padding-bottom: 5px;
+    text-align: center;
+}
+#loginbar.lbcsopen {
+    background: #21d124;
+    border-bottom: 2px solid black;
+}
+#loginbar.lbcsmopen {
+    background: orange;
+    border-bottom: 2px solid black;
+}
+#lbstatusfield {
+    float: left;
+    display: inline;
+}
+#lbbanner {
+    display: inline;
+}
+#lblogin {
+    float: right;
+    display: inline;
+}
+#loginbar FORM {
+    display: inline;
+}
+#loginbar INPUT {
+    font-size: 11px;
+    border: 1px solid black;
+    background:white;
+}
+#loginbar INPUT.submit {
+    color: black;
+    font-size: 11px;
+    border: 0px;
+    background:transparent;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+div.content > p {
+	text-align: justify;
+}
+
+div.content {
+	background: white;
+	color: #222222;
+	padding-left: 30px;
+	padding-right: 30px;
+	padding-top: 15px;
+	padding-bottom: 15px;
+	margin: 10px;
+	border: 1px solid gray;
+	-moz-border-radius: 15pt;
+}
+div.modal {
+    width:50%;
+    margin-left:auto;
+    margin-right:auto;
+    margin-top:50px;
+    margin-bottom:50px;
+}
+
+#loginform INPUT[type=text], #loginform INPUT[type=password], 
+#loginform SELECT {
+    width:200px;
+}
+div.footer {
+	background: transparent;
+	color: #777777;
+	text-align: center;
+	border-top: 1px solid #222222;
+	font-size: small;
+	margin: 10px;
+}
+
+div.warnings {
+    margin-left: 10px;
+    margin-right: 10px;
+    padding-left: 15px;
+    background: #eeeeee;
+    color: orange;
+    font-size: 11px;
+    vertical-align: middle;
+    border: 1px solid black;
+	-moz-border-radius: 15pt; 
+}
+div.debug {
+    margin-left: 10px;
+    margin-right: 10px;
+    padding-left: 15px;
+    background: #eeeeee;
+    color: blue;
+    font-size: 11px;
+    vertical-align: middle;
+    border: 1px solid black;
+	-moz-border-radius: 15pt;    
+}
+div.notice {
+    margin: 10px;
+    padding-left: 15px;
+    padding: 5px;
+    background: #eeeeee;
+    color: blue;
+    font-size: 11px;
+    vertical-align: middle;
+    border: 1px solid black;
+	-moz-border-radius: 15pt;
+}
+span.note {
+    font-size: 9px;
+    color: #bfbfff;
+}
+span.warn {
+    font-size: 9px;
+    color: #FF6600 !important ;
+    font-weight: bold;
+}
+
+
+table {
+	width: 100%;
+}
+
+td {
+	vertical-align: top;
+}
+
+td.menu {
+	width: 100px;
+}
+
+td.title2 {
+	padding: 10px;
+	text-align: right;
+	vertical-align: middle;
+}
+td.title1 {
+	padding: 10px;
+	text-align: left;
+	vertical-align: middle;
+}    
+td.content {
+	width: 100%;
+}
+th {
+    text-align: left;
+    background: #888888;
+}
+td.warning {
+    background-image: url('/img/warning.png');
+    background-repeat: no-repeat;
+    background-position: center right;
+}
+td.error,
+th.error {
+    background-image: url('/img/error.png');
+    background-repeat: no-repeat;
+    background-position: center right;
+    border: none;
+    padding: 5px;
+    margin: 0;
+    width: auto;
+    text-align: left;
+}
+td.error {
+    background-color: transparent;
+}
+th.error {
+    background-color: #888888;
+}
+tr.row1 {
+    background: transparent;
+}
+tr.row2 {
+    background: #dddddd;
+}
+tr.total {
+    background: #999999;
+}
+
+.disabled {
+    color: #999999;
+}
+ul {
+	padding-left: 10px;
+	margin-left: 0pt;
+}
+
+li {
+	padding-left: 0pt;
+	margin-left: 0pt;
+	white-space: nowrap;
+}
+.error {
+    background: #F0F0F0;
+    border: 2px solid red;
+    font-weight: bold;
+    color: black;
+    padding: 5px;
+    margin: auto;
+    margin-bottom: 5px;
+    width: 80%;
+    text-align: center;
+}
+/* Style for an include/exclude style set of select boxes */
+div.ielistheading {
+    text-align: center;
+    font-weight: bold;
+}
+td.ielistbuttons {
+    vertical-align: middle;
+    text-align: center;
+    width: 250px;
+}
+input.ielistbutton {
+    width: 170px;
+}
+select.ielist {
+    width: 200px;
+}
+span.ienotice {
+    display:inline;
+}
+span.ienotice-error {
+    display:inline;
+    font-weight: bold;
+    color: red;
+}
+option.iehide {
+    visibility:hidden;
+}
+/* Generic styles for displaying status information */
+.statusok {
+    color: green !important ;
+    font-weight: bold;
+}
+.statuswarning {
+    color: #FF6600 !important ;
+    font-weight: bold;
+}
+.statuscritical {
+    color: red !important ;
+    font-weight: bold;
+}
+
+#contact_details INPUT[type=text],
+#contact_details INPUT[type=password],
+#contact_details TEXTAREA,
+#contact_details SELECT{
+    width: 200px;
+}
+

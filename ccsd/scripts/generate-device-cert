@@ -1,0 +1,152 @@
+#!/usr/bin/python2.4
+# Copyright (C) 2006  The University of Waikato
+#
+# This file is part of crcnetd - CRCnet Configuration System Daemon
+#
+# Retrieves the latest CRL from the configuration system
+#
+# Author:       Matt Brown <matt@crc.net.nz>
+# Version:      $Id$
+#
+# crcnetd is free software; you can redistribute it and/or modify it under the
+# terms of the GNU General Public License version 2 as published by the Free
+# Software Foundation.
+#
+# crcnetd is distributed in the hope that it will be useful, but WITHOUT ANY
+# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
+# details.
+#
+# You should have received a copy of the GNU General Public License along with
+# crcnetd; if not, write to the Free Software Foundation, Inc.,
+# 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+import sys
+import os
+import readline
+import atexit
+import httplib
+import xmlrpclib
+import code
+import time
+from getpass import getpass
+
+# Get hostname, certificates from the commandline
+if len(sys.argv) < 4:
+    sys.stderr.write("Usage: %s [-S] <server> <key> <cert> <asset_id>\n" % 
+            sys.argv[0])
+    sys.exit(1)
+
+use_ssl = True
+if sys.argv[1] == "-S":
+    use_ssl = False
+    sys.argv[1:] = sys.argv[2:]
+server = sys.argv[1]
+key = sys.argv[2]
+cert = sys.argv[3]
+asset_id = int(sys.argv[4])
+
+# HTTPS transport object
+class MyTransport(xmlrpclib.Transport):
+    """XMLRPC Transport to create an HTTPS connection using client certs"""
+
+    def __init__(self, use_ssl=True):
+        self._use_ssl = use_ssl
+
+    def make_connection(self, host):
+        """Overrides the standard make_connection method
+
+        Specifies client certificates for the connection
+        """
+        
+        host, extra_headers, x509 = self.get_host_info(host)
+        if self._use_ssl:
+            try:
+                HTTPS = httplib.HTTPS
+            except AttributeError:
+                raise NotImplementedError(
+                        "your version of httplib doesn't support HTTPS"
+                    )
+            else:
+                return HTTPS(host, None, key_file=key, cert_file=cert);
+        else:
+            return httplib.HTTP(host, None)
+
+# Connect to the server 
+s = xmlrpclib.ServerProxy("https://%s/RPC2" % server, MyTransport(use_ssl))
+
+# Query to get the servers version, this acts as a check that a valid 
+# server was specified
+try:
+    v = s.getVersion()
+    if not v.startswith("CRCnet Configuration System"):
+        sys.stderr.write("Invalid Server!\n")
+        sys.exit(1)
+except:
+    (etype, value, tb) = sys.exc_info()
+    sys.stderr.write("Invalid Server! - %s\n" % value)
+    sys.exit(1)
+
+# Get a login
+print "Authentication:"
+username = raw_input("Username: ")
+password = getpass("Password: ")
+auth = s.login(username, password)
+
+# Get the Asset MAC address
+mac = None
+asset = s.getAsset({}, asset_id)
+for id,subasset in asset["subassets"].items():
+    if subasset["name"] != "eth0":
+        continue
+    for pid,prop in subasset["properties"].items():
+        if prop["description"] == "MAC Address":
+            mac = prop["value"]
+            break
+if mac is None:
+    sys.stderr.write("Cannot determine MAC address of Asset #%s" % asset_id)
+    sys.exit(1)
+
+# Generate the certificate
+try:
+    # Get the certificate parameters (O, OU, etc)
+    params = s.getCertificateParameters({})
+    print params
+    params["CN"] = mac.lower()
+    for k,v in params.items():
+        if v=="" or v is None: params[k]="."
+
+    # Generate the key and the signing request
+    (fdi, fdo) = os.popen2("openssl req -new -nodes -out " \
+        "ccsd-asset-%s-req.pem -keyout ccsd-asset-%s-key.pem 2>&1" % \
+        (asset_id, asset_id))
+    for p in ["C", "ST", "L", "O", "OU", "CN", "emailAddress"]:
+        fdi.write("%s\n" % params[p])
+    fdi.write("\n\n")
+    fdi.close()
+    output = fdo.readlines()
+    fdo.close()
+    # Wait for generation to finish, if key doesn't appear after 1s
+    # assume generation failed
+    time.sleep(1)
+    # Read the requests
+    try:
+        csr = open("ccsd-asset-%s-req.pem" % asset_id, "r").read()
+    except IOError:
+        sys.stderr.write("Failed to generate private key for device!\n")
+        for line in output: print line.strip()
+        sys.exit(1)
+    os.system("chmod 640 ccsd-asset-%s-key.pem" % asset_id)
+
+    # Ask the server to sign them
+    cert = s.getAssetCert(auth, asset_id, csr)
+
+    # Write out the certificate
+    fd = open("ccsd-asset-%s-cert.pem" % asset_id, "w")
+    fd.write(cert)
+    fd.close()
+    print "Certificate initialised successfully for asset #%s" % asset_id
+except:
+    (type, value, tb) = sys.exc_info()
+    sys.stderr.write("Unable to setup certificates! - %s\n" % value)
+    sys.exit(1)
+

@@ -1,0 +1,40 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+This template controls the operation of the CFengine servers on each host
+*#
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict with CFengine
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+################################################################
+#
+# CFengine defaults -- for %domain
+# $Date$
+#
+# Set variable to 1 to start the daemon; 0 otherwise.
+#
+# Note that cfservd will only run if you have put a file into
+# /etc/cfengine/cfservd.conf, even if you set RUN_CFSERVD.
+#
+# WARNING: Do not modify this file since it is automatically
+#          generated
+#
+################################################################
+
+RUN_CFSERVD=1
+RUN_CFEXECD=0
+RUN_CFENVD=0
+
+CFSERVD_ARGS=""
+#CFSERVD_ARGS="--multithread"

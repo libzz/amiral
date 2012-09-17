@@ -1,0 +1,37 @@
+-- 
+-- PostgreSQL drop schema for Radius Service
+--
+-- The Radius module has a dependency on the ccs_billing module
+--
+-- Author:   Matt Brown  <matt@crc.net.nz>
+-- Version:  $Id$
+--
+
+DROP TABLE radius_ippool;
+DROP TABLE radius_postauth;
+DROP INDEX radiusnas_nasname;
+DROP TABLE radius_nas;
+DROP FUNCTION update_customer_state();
+DROP INDEX radiustraffic_idx;
+DROP TABLE radius_traffic;
+DROP INDEX radacct_stop_user_idx;
+DROP INDEX radacct_start_user_idx;
+DROP INDEX radacct_active_user_idx;
+DROP TABLE radius_session;
+DROP VIEW radius_groupreply;
+DROP TABLE radius_groupreply_extra;
+DROP VIEW radius_groupreply_plan;
+DROP TABLE radius_reply;
+DROP INDEX radgroupcheck_GroupName;
+DROP TABLE radius_groupcheck;
+DROP VIEW radius_check;
+DROP TABLE radius_check_extra;
+DROP VIEW radius_passwd;
+DROP VIEW radius_groups;
+DROP TABLE radius_extra_groups;
+DROP VIEW radius_plan_groups;
+DROP VIEW radius_customers_group;
+DROP VIEW radius_client_info;
+DROP TABLE radius_client;
+DROP FUNCTION close_lost_radius_sessions();
+-- vim: ft=sql

@@ -1,0 +1,25 @@
+all:
+	
+install-rurallink:
+	install -d -m755 -o root -g root \
+		$(DESTDIR)/usr/share/ccsd/{crcnetd,resources}
+	install -d -m755 -o root -g root \
+		$(DESTDIR)/usr/share/ccsd/crcnetd/{_utils,modules}	
+	install -m644 -o root -g root crcnetd/*.py \
+		$(DESTDIR)/usr/share/ccsd/crcnetd/
+	install -m644 -o root -g root crcnetd/modules/* \
+		$(DESTDIR)/usr/share/ccsd/crcnetd/modules/
+	install -m644 -o root -g root crcnetd/_utils/* \
+		$(DESTDIR)/usr/share/ccsd/crcnetd/_utils/
+	install -m644 -o root -g root resources/* \
+		$(DESTDIR)/usr/share/ccsd/resources/
+	install -d -m755 -o root -g root $(DESTDIR)/usr/share/doc/ccsd/
+	install -m644 -o root -g root docs/* $(DESTDIR)/usr/share/doc/ccsd/
+	install -d -m755 -o root -g root $(DESTDIR)/usr/sbin/
+	install -m755 -o root -g root crcnet-monitor \
+		$(DESTDIR)/usr/sbin/rurallink-monitor
+
+clean:
+	@find . -name \*.pyc -exec rm {} \;
+	
+.PHONY: all install-rurallink clean release

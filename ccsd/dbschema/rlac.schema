@@ -1,0 +1,27 @@
+-- 
+-- PostgreSQL schema for Rlac Service
+--
+-- Author:   Chris Browning  <chris@rurallink.co.nz>
+-- Version:  $Id: hostapd.schema 1170 2006-12-05 04:02:24Z mglb1 $
+--
+
+CREATE TABLE rlac_lns (
+    lns_id              SERIAL PRIMARY KEY,
+    lns_name                varchar(50),
+    ip_address          inet
+);
+-- An interface must be present in this table to be enabled for hostap
+CREATE TABLE rlac_interface (
+    interface_id integer     NOT NULL REFERENCES interface (interface_id) 
+                                ON DELETE CASCADE
+);
+
+
+CREATE TABLE rlac_host (
+    host_id integer     NOT NULL REFERENCES host (host_id) 
+                                ON DELETE CASCADE,
+    lns_id      integer     NOT NULL REFERENCES rlac_lns(lns_id)
+                                ON DELETE RESTRICT
+);
+
+-- vim: ft=sql

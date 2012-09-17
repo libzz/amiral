@@ -1,0 +1,67 @@
+#! /bin/sh
+#
+# ccsd		CRCnet Configuration System Daemon
+#
+# Author:	Matt Brown <matt@crc.net.nz>
+# 
+# This file is part of crcnetd - CRCnet Configuration System Daemon
+# licensed under the GPLv2
+set -e
+
+PATH=/sbin:/bin:/usr/sbin:/usr/bin
+DESC="CRCnet Configuration System Daemon"
+NAME=ccsd
+DAEMON=/usr/sbin/ccsd
+PIDFILE=/var/run/ccsd/$NAME.pid
+SCRIPTNAME=/etc/init.d/$NAME
+CONFIGFILE=/etc/ccsd/ccsd.conf
+USER=ccsd
+GROUP=ccsd
+
+# Gracefully exit if the package has been removed.
+test -x $DAEMON || exit 0
+
+d_start() {
+	start-stop-daemon --chuid $USER:$GROUP --start --quiet \
+		--pidfile $PIDFILE --exec $DAEMON -- -c $CONFIGFILE -d
+}
+
+d_stop() {
+    if [ ! -f $PIDFILE ]; then
+        echo "ERROR! No Pidfile."
+        return 1
+    fi
+	kill `cat $PIDFILE 2>/dev/null` 2>/dev/null
+    rm -f $PIDFILE
+}
+
+case "$1" in
+  start)
+	echo -n "Starting $DESC: $NAME"
+	d_start
+	echo "."
+	;;
+  stop)
+	echo -n "Stopping $DESC: $NAME"
+	d_stop
+	echo "."
+	;;
+  restart|force-reload)
+	#
+	#	If the "reload" option is implemented, move the "force-reload"
+	#	option to the "reload" entry above. If not, "force-reload" is
+	#	just the same as "restart".
+	#
+	echo -n "Restarting $DESC: $NAME"
+	d_stop || true
+	sleep 1
+	d_start
+	echo "."
+	;;
+  *)
+	echo "Usage: $SCRIPTNAME {start|stop|restart|force-reload}" >&2
+	exit 1
+	;;
+esac
+
+exit 0

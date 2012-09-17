@@ -1,0 +1,1276 @@
+-- 
+-- PostgreSQL create schema for CRCnet configuration system database
+--
+-- There is a history system implemented via the changeset table and the
+-- do_table_history / delete_row functions. This has the ability to track
+-- all changes to a particular database table. Tables must have a primary
+-- key field which is an integer named after the table with "_id" suffixed
+-- to use this system. History information is only kept if the update 
+-- increments the changeset field in the row being updated.
+--
+-- When inserting,updating or deleting a record from a table with history
+-- the action must happen inside a transaction that has inserted a record
+-- with the pending field set to true in the changeset table or the action
+-- will be disallowed.
+-- All transactions must use the serialisable locking mode to ensure that
+-- only one pending record in the changeset table is visible to the history
+-- trigger at a time. 
+--
+-- Author:   Matt Brown  <matt@crc.net.nz>
+-- Version:  $Id$
+--
+-- This file is a part of crcnetd, licensed under the GPLv2
+
+-- UserID sequences
+CREATE SEQUENCE uid_seq MINVALUE 5000;
+
+-- Group ID sequences
+CREATE SEQUENCE gid_seq MINVALUE 5000;
+
+-- Changeset 
+-- Used to keep track of changes to the database
+-- Trigger to check that only one pending changeset exists at a time
+CREATE FUNCTION check_changeset () RETURNS TRIGGER AS $$
+# If not creating a pending changeset return now
+if TD["new"]["pending"] == "f":
+	return None
+
+# Check for existing pending changesets
+rv = plpy.execute("SELECT * FROM changeset WHERE pending='t'")
+if len(rv) > 0:
+	for row in rv:
+		if row["changeset_id"] != TD["new"]["changeset_id"]:
+			plpy.error("Unable to initiate changeset! There is " \
+                    "already an active changeset in this transaction.")
+
+	return None
+$$ LANGUAGE 'plpythonu';
+
+-- Helper function to allow the admin to create/end a changeset when dealing
+-- with the database manually
+CREATE FUNCTION start_changeset(varchar) RETURNS integer AS '
+DECLARE
+    description ALIAS FOR $1;
+BEGIN
+    INSERT INTO changeset VALUES 
+        (DEFAULT, DEFAULT, ''admin'', description, NULL, ''t'');
+    RETURN 1;
+END;
+' LANGUAGE plpgsql;
+CREATE FUNCTION end_changeset() RETURNS integer AS '
+BEGIN
+    UPDATE changeset SET pending=''f'' WHERE username=''admin'' 
+        AND pending=''t'';
+    RETURN 1;
+END;
+' LANGUAGE plpgsql;
+
+CREATE TABLE changeset (
+ changeset_id               SERIAL          PRIMARY KEY,
+ timestamp                  timestamp with time zone NOT NULL DEFAULT NOW(),
+ username                   varchar(16)     NOT NULL,
+ description                varchar(256),
+ svn_revision               integer,
+ pending                    boolean         NOT NULL DEFAULT 'f'
+);
+CREATE TRIGGER changeset_t BEFORE INSERT OR UPDATE ON changeset
+    FOR EACH ROW EXECUTE PROCEDURE check_changeset();
+
+
+-- Generic function to copy history data to the appropriate table
+CREATE FUNCTION do_table_history () RETURNS TRIGGER AS $$
+    # Trigger only handles row level update
+    if TD["level"] != "ROW":
+        plpy.notice("do_table_history only handles ROW level updates!")
+        return None
+    # Trigger only handles before updates
+    if TD["when"] != "BEFORE":
+        plpy.notice("do_table_history only handles BEFORE updates!")
+        return None
+    # Check for active "changeset transaction"
+    rv = plpy.execute("SELECT * FROM changeset WHERE pending='t'")
+    if len(rv) == 0:
+        plpy.error("Cannot update table. No pending changeset!")
+        return None
+    if len(rv) > 1:
+        plpy.error("Cannot update table. Multiple pending changesets!")
+        return None
+    # Get changeset id
+    changeset = rv[0]["changeset_id"]
+    # Postgres only gives us an oid, so look up the table name
+    rv = plpy.execute("SELECT relname FROM pg_class WHERE relfilenode=%s"% \
+        TD["relid"], 1)
+    if len(rv)!=1:
+        plpy.notice("Unable to determine table name in do_table_history!")
+        return None
+    tablename = rv[0]["relname"]
+    # Get list of primary keys in the table
+    rvkeys = plpy.execute("SELECT column_name FROM table_pkeys WHERE " \
+        "table_name='%s'" % tablename)
+    if len(rvkeys) <= 0:
+        plpy.notice("Cannot update table. No primary key!")
+        return None
+    # Copy data across to the history table
+    if TD["event"] == "UPDATE" or TD["event"] == "DELETE":
+        # Build Where Clause
+        wherec = "WHERE"
+        c= ""
+        for pk in rvkeys:
+            wherec = "%s%s %s=%s" % (wherec, c, pk["column_name"], \
+                TD["old"][pk["column_name"]])
+            c = " AND"
+        # If not newer than changset in history table, no save occurs
+        rv = plpy.execute("SELECT MAX(changeset) as changeset FROM " \
+            "%s_history %s" % (tablename, wherec), 1)
+        if rv[0]["changeset"]!=0 and rv[0]["changeset"]>=changeset:
+            return None
+        # Make sure we get the column ordering correct
+        columns = plpy.execute("SELECT column_name FROM table_columns WHERE " \
+            "table_name='%s'" % tablename)
+        if len(columns) <= 0:
+            plpy.notice("Cannot update table. No columns found!")
+            return None
+        # Build the column list
+        clist = ""
+        for col in columns:
+            if len(clist)>0: 
+                clist = "%s, %s" % (clist, col["column_name"])
+            else:
+                clist = col["column_name"]
+        # Save history record
+        plpy.execute("INSERT INTO %s_history (%s, changeset) SELECT %s, " \
+            "%s FROM %s %s" % \
+            (tablename, clist, clist, changeset, tablename, wherec))
+    elif TD["event"] == "INSERT":
+        # Build Required column/value bits
+        cols = vals = c = ""
+        for pk in rvkeys:
+            cols = "%s%s %s" % (cols, c, pk["column_name"])
+            vals = "%s%s %s" % (vals, c, TD["new"][pk["column_name"]])
+            c = ", "
+        # Insert the history record
+        plpy.execute("INSERT INTO %s_history (%s, changeset) VALUES (%s, %s)" \
+            % (tablename, cols, vals, changeset))
+$$ LANGUAGE 'plpythonu';
+
+--The logins table is to be used to keep track of all logins (email and ccsd).
+--The idea of a domain exists so that email accounts can be done.
+CREATE TABLE logins (
+ login_id                 SERIAL          PRIMARY KEY,
+ --The password is used to login to a mail account if attached, or ccsd if
+ --there is an entry in the admins or customers table for them.
+ passwd                     varchar(34),  
+ username                   varchar(50)     NOT NULL, 
+ domain                     varchar(50)     NOT NULL,
+ enabled                    integer         NOT NULL DEFAULT 1,
+ lastlog                    timestamp with time zone,
+ UNIQUE (username, domain)
+);
+CREATE TABLE logins_shadow (
+ login_id                   integer NOT NULL UNIQUE REFERENCES logins(login_id) ON DELETE CASCADE,
+ --The password is used to do chap auth
+ passwd                     varchar(34)
+);
+CREATE TABLE logins_history (
+ login_id                   integer         NOT NULL,
+ passwd                     varchar(34),  
+ username                   varchar(50), 
+ domain                     varchar(50),
+ enabled                    integer,
+ lastlog                    timestamp with time zone,
+ changeset                 integer NOT NULL REFERENCES changeset (changeset_id),
+ PRIMARY KEY (login_id, changeset)
+);
+CREATE TRIGGER logins_history_t BEFORE INSERT OR UPDATE OR DELETE ON 
+    logins FOR EACH ROW EXECUTE PROCEDURE do_table_history();
+
+--The admins table will be people that can login to ccsd's admin interface
+--What rights they have will be decided by the groups tables
+CREATE TABLE admins (
+ admin_id                 SERIAL          PRIMARY KEY,
+ login_id                   integer         NOT NULL UNIQUE REFERENCES
+     logins (login_id)    ON DELETE CASCADE,
+ givenname                  varchar(50)     NOT NULL,
+ surname                    varchar(50)     NOT NULL,
+ phone                      varchar(20),
+ email                      varchar(50),
+ uid                        integer,      
+ address                    varchar(100),  
+ public_key                 text,   
+ shell                      varchar(100)
+);
+CREATE TABLE admins_history (
+ admin_id                   integer         NOT NULL,
+ login_id                   integer,
+ givenname                  varchar(50),
+ surname                    varchar(50),
+ phone                      varchar(20),
+ email                      varchar(50),
+ uid                        integer,      
+ address                    varchar(100),  
+ public_key                 text,   
+ shell                      varchar(100),
+ changeset                 integer NOT NULL REFERENCES changeset (changeset_id),
+ PRIMARY KEY (admin_id, changeset)
+);
+CREATE TRIGGER admins_history_t BEFORE INSERT OR UPDATE OR DELETE ON 
+    admins FOR EACH ROW EXECUTE PROCEDURE do_table_history();
+
+CREATE TABLE site_contacts (
+ contact_id                 SERIAL          PRIMARY KEY,
+ givenname                  varchar(50)     NOT NULL,
+ surname                    varchar(50)     NOT NULL,
+ phone                      varchar(20),
+ email                      varchar(50),
+ address                    varchar(100) 
+);
+CREATE TABLE site_contacts_history (
+ contact_id                 integer         NOT NULL,
+ givenname                  varchar(50),
+ surname                    varchar(50),
+ phone                      varchar(20),
+ email                      varchar(50),
+ address                    varchar(100),
+ changeset                 integer NOT NULL REFERENCES changeset (changeset_id),
+ PRIMARY KEY (contact_id, changeset)
+);
+CREATE TRIGGER site_contacts_history_t BEFORE INSERT OR UPDATE OR DELETE ON 
+    site_contacts FOR EACH ROW EXECUTE PROCEDURE do_table_history();
+    
+-- Keep track of whether the user has logged in the first time 
+CREATE TABLE first_login (
+ login_id                 integer         NOT NULL UNIQUE REFERENCES 
+    logins (login_id) ON DELETE CASCADE,
+ enabled                    integer         NOT NULL DEFAULT 1,
+ login_ts                   timestamp with time zone DEFAULT NULL
+);
+
+--Groups as per old schema but tied to admins table rather than contacts.
+CREATE TABLE admin_group (
+ admin_group_id          SERIAL           PRIMARY KEY,
+ group_name                varchar(16)      NOT NULL UNIQUE,
+ gid                       integer
+);
+CREATE TABLE admin_group_history (
+ admin_group_id          integer          NOT NULL,
+ group_name                varchar(16),
+ gid                       integer,
+ changeset                 integer NOT NULL REFERENCES changeset (changeset_id),
+ PRIMARY KEY (admin_group_id, changeset)
+);
+CREATE TRIGGER admin_history_t BEFORE INSERT OR UPDATE OR DELETE ON 
+    admin_group FOR EACH ROW EXECUTE PROCEDURE do_table_history();
+
+-- Group membership, each record must have either admin_id or group_id set
+CREATE TABLE group_membership (
+ group_membership_id       SERIAL          PRIMARY KEY,
+ parent_group_id           integer         NOT NULL REFERENCES
+    admin_group (admin_group_id) ON DELETE CASCADE,
+ admin_id                integer         REFERENCES admins
+    (admin_id) ON DELETE CASCADE,
+ group_id                  integer         REFERENCES admin_group
+    (admin_group_id) ON DELETE CASCADE,
+ UNIQUE (parent_group_id, admin_id),
+ UNIQUE (parent_group_id, group_id),
+ CHECK (parent_group_id != group_id)
+);
+CREATE TABLE group_membership_history (
+ group_membership_id       integer         NOT NULL,
+ parent_group_id           integer,
+ admin_id                integer,
+ group_id                  integer,
+ changeset                 integer NOT NULL REFERENCES changeset (changeset_id),
+ PRIMARY KEY (group_membership_id, changeset)
+);
+CREATE TRIGGER group_membership_t BEFORE INSERT OR UPDATE OR DELETE ON 
+    group_membership FOR EACH ROW EXECUTE PROCEDURE do_table_history();
+
+CREATE FUNCTION group_member(bigint, bigint) RETURNS integer AS '
+DECLARE
+    g_id ALIAS FOR $1;
+    p_g_id ALIAS FOR $2;
+    current RECORD;
+    result RECORD;
+BEGIN
+    SELECT INTO current count(*) as n FROM group_membership WHERE parent_group_id=p_g_id AND group_id=g_id;
+    IF current.n = 1 THEN
+        return 1;
+    END IF;
+    
+    -- Recurse down through group memberships
+    FOR current IN SELECT group_id FROM group_membership WHERE parent_group_id=p_g_id AND group_id!=g_id LOOP
+        FOR result IN EXECUTE ''SELECT group_member('' || g_id || '','' || current.group_id || '')'' LOOP
+            IF result.group_member = 1 THEN
+                return 1;
+            END IF;
+        END LOOP;
+    END LOOP;
+    
+    RETURN 0;
+END;
+' LANGUAGE plpgsql;
+CREATE FUNCTION gm_check_loop() RETURNS trigger AS '
+DECLARE
+    current RECORD;
+BEGIN
+    -- Check the parent group is not a member of the child
+    SELECT INTO current group_member(NEW.parent_group_id, NEW.group_id);
+    IF current.group_member = 1 THEN    
+        RAISE EXCEPTION ''Cannot make parent group (%) member of a child (%)!'', NEW.group_id, NEW.parent_group_id;
+    END IF;
+
+    -- All OK, Proceed
+    RETURN NEW;
+END;
+' LANGUAGE plpgsql;
+CREATE TRIGGER group_membership_loop BEFORE INSERT OR UPDATE ON group_membership  FOR EACH ROW EXECUTE PROCEDURE gm_check_loop();
+
+
+-- This table keeps track of sessions connected to the daemon
+CREATE SEQUENCE sessions_sid_seq MINVALUE 1;
+CREATE TABLE sessions (
+  sid                       integer         DEFAULT nextval('sessions_sid_seq')
+    NOT NULL,
+  login_id                  integer     REFERENCES logins (login_id) 
+    ON DELETE CASCADE,
+  mode                      char(2)         NOT NULL,
+  token                     varchar(10)     NOT NULL,
+  initiated                 timestamp with time zone,
+  expires                   timestamp with time zone,
+  address                   varchar(50)
+);
+
+-- Keep track of cookies we have given out which may be used to log in
+CREATE TABLE cookies (
+  login_id                  integer     NOT NULL REFERENCES logins (login_id) ON DELETE CASCADE,
+  token                     varchar(32)     NOT NULL,
+  expires                   timestamp with time zone
+);
+
+-- Physical Location
+CREATE TABLE site (
+ site_id                    SERIAL          PRIMARY KEY,  
+ gps_lat                    double precision            NOT NULL default 0, 
+ gps_long                   double precision            NOT NULL default 0, 
+ elevation                  real            NOT NULL default 0,
+ location                   varchar(64)     NOT NULL,
+ admin_contact_id           integer         NOT NULL REFERENCES 
+    site_contacts (contact_id),
+ tech_contact_id            integer         NOT NULL REFERENCES 
+    site_contacts (contact_id),
+ comments                   text  
+);
+CREATE TABLE site_history (
+ site_id                    integer         NOT NULL,  
+ gps_lat                    double precision, 
+ gps_long                   double precision, 
+ elevation                  real,
+ location                   varchar(64),
+ admin_contact_id           integer, 
+ tech_contact_id            integer,
+ comments                   text,
+ changeset                  integer NOT NULL REFERENCES changeset
+    (changeset_id),
+ PRIMARY KEY (site_id, changeset)
+);
+CREATE TRIGGER site_t BEFORE INSERT OR UPDATE OR DELETE ON site FOR EACH ROW
+    EXECUTE PROCEDURE do_table_history();
+
+-- Asset Type 
+CREATE TABLE asset_type (
+ asset_type_id              SERIAL          PRIMARY KEY,
+ description                varchar(64)     NOT NULL UNIQUE
+);
+CREATE TABLE asset_type_history (
+ asset_type_id              integer         NOT NULL,
+ description                varchar(64),
+ changeset                  integer NOT NULL REFERENCES changeset
+    (changeset_id),
+ PRIMARY KEY (asset_type_id, changeset)
+);
+CREATE TRIGGER asset_type_t BEFORE INSERT OR UPDATE OR DELETE ON asset_type
+    FOR EACH ROW EXECUTE PROCEDURE do_table_history();
+
+-- Mapping of asset functionality to types (ie. hosts can be this type of asset)
+CREATE TABLE asset_type_map (
+ asset_function         varchar(64)     NOT NULL,             
+ asset_type_id          integer         NOT NULL REFERENCES asset_type 
+    (asset_type_id) ON DELETE CASCADE
+);
+
+-- Subasset Type
+CREATE TABLE subasset_type (
+ subasset_type_id           SERIAL          PRIMARY KEY,
+ description                varchar(64)     NOT NULL UNIQUE
+);
+CREATE TABLE subasset_type_history (
+ subasset_type_id           integer         NOT NULL,
+ description                varchar(64),
+ changeset                  integer NOT NULL REFERENCES changeset
+    (changeset_id),
+ PRIMARY KEY (subasset_type_id, changeset)
+);
+CREATE TRIGGER subasset_type_t BEFORE INSERT OR UPDATE OR DELETE ON 
+    subasset_type FOR EACH ROW EXECUTE PROCEDURE do_table_history();
+
+-- Mapping of subasset functionality to types 
+-- (ie. hosts can be this type of subasset)
+CREATE TABLE subasset_type_map (
+ asset_function         varchar(64)     NOT NULL,             
+ subasset_type_id       integer         NOT NULL REFERENCES subasset_type 
+    (subasset_type_id) ON DELETE CASCADE
+);
+
+-- Subasset Type are linked to asset types
+CREATE TABLE asset_type_subasset (
+ asset_type_subasset_id     SERIAL          PRIMARY KEY,
+ asset_type_id              integer         NOT NULL REFERENCES asset_type (asset_type_id),
+ subasset_type_id           integer         NOT NULL REFERENCES subasset_type (subasset_type_id),
+ name                       varchar(30)     NOT NULL,
+ required                   boolean         DEFAULT 't'::bool,
+ UNIQUE(asset_type_id, subasset_type_id, name)
+);
+CREATE TABLE asset_type_subasset_history (
+ asset_type_subasset_id     integer         NOT NULL,
+ asset_type_id              integer,
+ subasset_type_id           integer,
+ name                       varchar(30),
+ required                   boolean,
+ changeset                  integer NOT NULL REFERENCES changeset
+    (changeset_id),
+ PRIMARY KEY (asset_type_subasset_id, changeset)
+);
+CREATE TRIGGER asset_type_subasset_t BEFORE INSERT OR UPDATE OR DELETE ON 
+    asset_type_subasset FOR EACH ROW EXECUTE PROCEDURE do_table_history();
+
+-- Asset Property
+CREATE TABLE asset_property (
+ asset_property_id          SERIAL          PRIMARY KEY,
+ description                varchar(64)     NOT NULL
+);
+CREATE TABLE asset_property_history (
+ asset_property_id          integer         NOT NULL,
+ description                varchar(64),
+ changeset                  integer NOT NULL REFERENCES changeset
+    (changeset_id),
+ PRIMARY KEY (asset_property_id, changeset)
+);
+CREATE TRIGGER asset_property_t BEFORE INSERT OR UPDATE OR DELETE ON 
+    asset_property FOR EACH ROW EXECUTE PROCEDURE do_table_history();
+
+-- Properties are linked to subasset types
+CREATE TABLE subasset_property (
+ subasset_property_id    SERIAL          PRIMARY KEY,
+ subasset_type_id        integer         NOT NULL REFERENCES 
+    subasset_type (subasset_type_id),
+ asset_property_id       integer         NOT NULL REFERENCES 
+    asset_property (asset_property_id),
+ required                boolean         DEFAULT 't'::bool,
+ default_value           varchar(128)
+);
+CREATE TABLE subasset_property_history (
+ subasset_property_id    integer        NOT NULL,
+ subasset_type_id        integer,
+ asset_property_id       integer,
+ required                boolean,
+ default_value           varchar(128),
+ changeset                  integer NOT NULL REFERENCES changeset
+    (changeset_id),
+ PRIMARY KEY (subasset_property_id, changeset)
+);
+CREATE TRIGGER subasset_property_t BEFORE INSERT OR UPDATE OR DELETE ON 
+    subasset_property FOR EACH ROW EXECUTE PROCEDURE do_table_history();
+
+-- The actual assets
+CREATE TABLE asset (
+ asset_id                SERIAL          PRIMARY KEY,
+ asset_type_id           integer         NOT NULL REFERENCES asset_type (asset_type_id),
+ serial_no               varchar(32)     NOT NULL,
+ description             varchar(64)     NOT NULL,
+ date_purchased          date,
+ currency                varchar(3)      NOT NULL DEFAULT 'NZD',
+ price                   real            DEFAULT 0,
+ supplier                varchar(64),
+ label_txt               varchar(64),
+ enabled                 boolean         DEFAULT 't'::bool,
+ notes                   text
+);
+CREATE TABLE asset_history (
+ asset_id                integer         NOT NULL,
+ asset_type_id           integer,
+ serial_no               varchar(32),
+ description             varchar(64),
+ date_purchased          date,
+ currency                varchar(3),
+ price                   real,
+ supplier                varchar(64),
+ label_txt               varchar(64),
+ enabled                 boolean,
+ notes                   text,
+ changeset                  integer NOT NULL REFERENCES changeset
+    (changeset_id),
+ PRIMARY KEY (asset_id, changeset)
+);
+CREATE TRIGGER asset_t BEFORE INSERT OR UPDATE OR DELETE ON asset FOR EACH
+    ROW EXECUTE PROCEDURE do_table_history();
+
+-- Each asset has subassets
+CREATE TABLE subasset (
+ subasset_id            SERIAL          PRIMARY KEY,
+ asset_id               integer         NOT NULL REFERENCES asset (asset_id) ON DELETE CASCADE,
+ asset_type_subasset_id integer         NOT NULL REFERENCES asset_type_subasset (asset_type_subasset_id),
+ enabled                boolean         DEFAULT 't'::bool
+);
+CREATE TABLE subasset_history (
+ subasset_id            integer         NOT NULL,
+ asset_id               integer,
+ asset_type_subasset_id integer,
+ enabled                boolean,
+ changeset                  integer NOT NULL REFERENCES changeset
+    (changeset_id),
+ PRIMARY KEY (subasset_id, changeset)
+);
+CREATE TRIGGER subasset_t BEFORE INSERT OR UPDATE OR DELETE ON subasset FOR 
+    EACH ROW EXECUTE PROCEDURE do_table_history();
+
+-- Each subasset has data 
+CREATE TABLE asset_data (
+ asset_data_id          SERIAL          PRIMARY KEY,
+ subasset_id            integer         NOT NULL REFERENCES 
+    subasset (subasset_id) ON DELETE CASCADE,
+ subasset_property_id   integer         NOT NULL REFERENCES 
+    subasset_property (subasset_property_id),
+ value                  varchar(64)     NOT NULL
+);
+CREATE TABLE asset_data_history (
+ asset_data_id          integer         NOT NULL,
+ subasset_id            integer,
+ subasset_property_id   integer,
+ value                  varchar(64),
+ changeset                  integer NOT NULL REFERENCES changeset
+    (changeset_id),
+ PRIMARY KEY (asset_data_id, changeset)
+);
+CREATE TRIGGER asset_data_t BEFORE INSERT OR UPDATE OR DELETE ON asset_data FOR 
+    EACH ROW EXECUTE PROCEDURE do_table_history();
+
+-- Each asset has a location
+CREATE TABLE asset_location (
+ asset_location_id      SERIAL          PRIMARY KEY,
+ asset_id               integer         NOT NULL REFERENCES 
+    asset (asset_id) ON DELETE CASCADE,
+ site_id                integer         REFERENCES site (site_id),
+ attached_to            integer         REFERENCES asset (asset_id),
+ location_updated       timestamp with time zone NOT NULL DEFAULT NOW(),
+ CHECK  (asset_id != attached_to)
+);
+CREATE TABLE asset_location_history (
+ asset_location_id      integer         NOT NULL,
+ asset_id               integer,
+ site_id                integer,
+ attached_to            integer,
+ location_updated       timestamp with time zone NOT NULL DEFAULT NOW(),
+ changeset                  integer NOT NULL REFERENCES changeset
+    (changeset_id),
+ PRIMARY KEY (asset_location_id, changeset)
+);
+CREATE TRIGGER asset_location_t BEFORE INSERT OR UPDATE OR DELETE ON 
+    asset_location FOR EACH ROW EXECUTE PROCEDURE do_table_history();
+
+-- Some locations are marked as being "stock"
+CREATE TABLE asset_stock_location (
+ asset_stock_location_id SERIAL     PRIMARY KEY,
+ site_id                integer     NOT NULL REFERENCES site (site_id) ON 
+    DELETE CASCADE,
+ default_location       boolean     NOT NULL DEFAULT 'f'
+);
+CREATE TABLE asset_stock_location_history (
+ asset_stock_location_id integer    NOT NULL,
+ site_id                integer,
+ default_location       boolean,
+ changeset              integer     NOT NULL REFERENCES changeset
+    (changeset_id),
+ PRIMARY KEY (asset_stock_location_id, changeset)
+);
+CREATE TRIGGER asset_stock_location_t BEFORE INSERT OR UPDATE OR DELETE ON 
+    asset_stock_location FOR EACH ROW EXECUTE PROCEDURE do_table_history();
+
+
+-- There are various types of event
+CREATE TABLE event_type (
+ event_type_id          SERIAL          PRIMARY KEY,
+ description            varchar(64)     NOT NULL,
+ updates_location       boolean         NOT NULL
+);
+-- Each asset has events
+CREATE TABLE asset_event (
+ asset_event_id         SERIAL          PRIMARY KEY,
+ asset_id               integer         NOT NULL REFERENCES 
+    asset (asset_id) ON DELETE CASCADE,
+ timestamp              timestamp with time zone NOT NULL DEFAULT NOW(),
+ event_type             integer         NOT NULL REFERENCES 
+    event_type (event_type_id),
+ username               varchar(64)     NOT NULL,
+ data1                  varchar(64)     NOT NULL,
+ data2                  varchar(64)     
+);
+
+-- List of available distributions
+CREATE TABLE distribution (
+ distribution_id            SERIAL          PRIMARY KEY,
+ name                       varchar(255)    NOT NULL,
+ description                text            NOT NULL,
+ default_kernel             integer         NOT NULL
+);
+CREATE TABLE distribution_history (
+ distribution_id            integer         NOT NULL,
+ name                       varchar(255),
+ description                text,
+ default_kernel             integer,
+ changeset                  integer NOT NULL REFERENCES changeset
+    (changeset_id),
+ PRIMARY KEY (distribution_id, changeset)
+);
+CREATE TRIGGER distribution_t BEFORE INSERT OR UPDATE OR DELETE ON 
+    distribution FOR EACH ROW EXECUTE PROCEDURE do_table_history();
+ 
+-- List of available kernels
+CREATE TABLE kernel (
+ kernel_id                  SERIAL          PRIMARY KEY,
+ upstream_release           varchar(30)     NOT NULL,
+ local_version              varchar(30)     NOT NULL,
+ revision                   integer         NOT NULL,
+ build_date                 timestamp with time zone NOT NULL
+);
+CREATE TABLE kernel_history (
+ kernel_id                  integer         NOT NULL,
+ upstream_release           varchar(30),
+ local_version              varchar(30),
+ revision                   integer,
+ build_date                 timestamp with time zone,
+ changeset                  integer NOT NULL REFERENCES changeset
+    (changeset_id),
+ PRIMARY KEY (kernel_id, changeset)
+);
+CREATE TRIGGER kernel_t BEFORE INSERT OR UPDATE OR DELETE ON 
+    kernel FOR EACH ROW EXECUTE PROCEDURE do_table_history();
+
+-- Wireless Modules
+CREATE TABLE module (
+ module_id                  SERIAL          PRIMARY KEY,
+ module_name                varchar(30)     NOT NULL,
+ master_mode                boolean         NOT NULL DEFAULT 'f',
+ b_mode                     boolean         NOT NULL DEFAULT 't',
+ g_mode                     boolean         NOT NULL DEFAULT 'f',
+ a_mode                     boolean         NOT NULL DEFAULT 'f'
+);
+CREATE TABLE module_history (
+ module_id                  integer         NOT NULL,
+ module_name                varchar(30),
+ master_mode                boolean,
+ b_mode                     boolean,
+ g_mode                     boolean,
+ a_mode                     boolean,
+ changeset                  integer NOT NULL REFERENCES changeset
+    (changeset_id),
+ PRIMARY KEY (module_id, changeset)
+);
+CREATE TRIGGER module_t BEFORE INSERT OR UPDATE OR DELETE ON 
+    module FOR EACH ROW EXECUTE PROCEDURE do_table_history();
+
+-- Mapping of Asset Types to Modules
+CREATE TABLE module_map (
+ module_map_id              SERIAL          PRIMARY KEY,
+ module_id                  integer         NOT NULL REFERENCES module 
+    (module_id),
+ asset_type_id              integer         NOT NULL REFERENCES asset_type
+    (asset_type_id),
+ is_default                 boolean         NOT NULL DEFAULT 'f'
+);
+CREATE TABLE module_map_history (
+ module_map_id              integer         NOT NULL,
+ module_id                  integer,
+ asset_type_id              integer,
+ is_default                 boolean,
+ changeset                  integer NOT NULL REFERENCES changeset
+    (changeset_id),
+ PRIMARY KEY (module_map_id, changeset)
+);
+CREATE TRIGGER module_map_t BEFORE INSERT OR UPDATE OR DELETE ON 
+    module_map FOR EACH ROW EXECUTE PROCEDURE do_table_history();
+
+-- Link Classes - used for IP allocations
+CREATE TABLE link_class (
+ link_class_id              SERIAL          PRIMARY KEY,
+ description                varchar(250)    NOT NULL,
+ netblock                   cidr,
+ allocsize                  integer         NOT NULL,
+ allocup                    boolean         NOT NULL DEFAULT 't'
+);
+CREATE TABLE link_class_history (
+ link_class_id              integer         NOT NULL,
+ description                varchar(250),
+ netblock                   cidr,
+ allocsize                  integer,
+ allocup                    boolean,
+ changeset                  integer NOT NULL REFERENCES changeset
+    (changeset_id),
+ PRIMARY KEY (link_class_id, changeset)
+);
+CREATE TRIGGER link_class_t BEFORE INSERT OR UPDATE OR DELETE ON 
+    link_class FOR EACH ROW EXECUTE PROCEDURE do_table_history();
+
+-- Link Helper Tables
+CREATE TABLE link_type (
+ type_name                  varchar(64)     PRIMARY KEY,
+ description                varchar(250)    NOT NULL
+);
+CREATE TABLE link_mode (
+ mode                       varchar(20)     NOT NULL,
+ type_name                  varchar(64)     NOT NULL REFERENCES
+    link_type (type_name),
+ description                varchar(250)    NOT NULL,
+ PRIMARY KEY (mode, type_name)
+);
+CREATE TABLE mode_channels (
+ mode                       varchar(20)     NOT NULL,
+ channel                    integer         NOT NULL,
+ description                varchar(250)    NOT NULL,
+ PRIMARY KEY (mode, channel)
+);
+
+-- Link
+CREATE TABLE link (
+ link_id                    SERIAL          PRIMARY KEY,
+ description                varchar(250)    NOT NULL,
+ type                       varchar(64)     NOT NULL REFERENCES 
+    link_type (type_name),
+ mode                       varchar(20),
+ class_id                   integer         REFERENCES 
+    link_class (link_class_id),
+ essid                      varchar(64),
+ channel                    integer,
+ key                        varchar(32),
+ network_address            cidr,
+ shared_network             boolean         NOT NULL DEFAULT FALSE
+);
+CREATE TABLE link_history (
+ link_id                    integer         NOT NULL,
+ description                varchar(250),
+ type                       varchar(64),  
+ mode                       varchar(20),
+ class_id                   integer,
+ essid                      varchar(64),
+ channel                    integer,
+ key                        varchar(32),
+ network_address            cidr,
+ shared_network             boolean,
+ changeset                  integer NOT NULL REFERENCES changeset
+    (changeset_id),
+ PRIMARY KEY (link_id, changeset)
+);
+CREATE TRIGGER link_t BEFORE INSERT OR UPDATE OR DELETE ON 
+    link FOR EACH ROW EXECUTE PROCEDURE do_table_history();
+
+-- Physical Machine / Router
+CREATE TABLE host (
+ host_id                    SERIAL          PRIMARY KEY,
+ host_name                  varchar(64)     UNIQUE NOT NULL,
+ distribution_id            integer         NOT NULL REFERENCES 
+    distribution (distribution_id),
+ kernel_id                  integer         NOT NULL REFERENCES 
+    kernel (kernel_id),
+ asset_id                   integer         REFERENCES asset (asset_id),
+ ip_address                 inet            UNIQUE NOT NULL,
+ site_id                    integer         REFERENCES site (site_id),
+ host_active                boolean         NOT NULL default 't',
+ is_gateway                 boolean         NOT NULL default 'f',
+ CHECK((host_active='t' AND site_id IS NOT NULL AND asset_id IS NOT NULL) OR
+    host_active='f') 
+);
+CREATE TABLE host_history (
+ host_id                    integer         NOT NULL,
+ host_name                  varchar(64),
+ distribution_id            integer,
+ kernel_id                  integer,
+ asset_id                   integer,
+ ip_address                 inet,
+ site_id                    integer,
+ host_active                boolean,
+ is_gateway                 boolean,
+ changeset                  integer NOT NULL REFERENCES changeset
+    (changeset_id),
+ PRIMARY KEY (host_id, changeset)
+);
+CREATE TRIGGER host_t BEFORE INSERT OR UPDATE OR DELETE ON 
+    host FOR EACH ROW EXECUTE PROCEDURE do_table_history();
+
+-- Interface on a Machine / Router
+CREATE TABLE interface (
+ interface_id               SERIAL          PRIMARY KEY,
+ interface_type             integer         NOT NULL,
+ host_id                    integer         NOT NULL REFERENCES 
+    host (host_id) ON DELETE CASCADE,
+ link_id                    integer         NOT NULL REFERENCES 
+    link (link_id),
+ module_id                  integer         REFERENCES module (module_id),
+ ip_address                 inet,
+ name                       varchar(16)     NOT NULL,
+ use_gateway                boolean         NOT NULL default 'f',
+ subasset_id                integer         REFERENCES subasset (subasset_id),
+ -- interface to derive this interface from (for VLAN)
+ raw_interface              integer,
+ -- interface to bridge traffic on to
+ bridge_interface           integer,
+ interface_active           boolean         NOT NULL default 't',
+ -- Act as an AP
+ master_interface           boolean         NOT NULL default 'f',
+ -- Override the link channel when acting as an AP
+ master_channel             integer,
+ master_mode                varchar(20),
+ -- Allow the netmask to be overriden when configured as an alias
+ alias_netmask              integer,
+ -- Be silent, send nothing, capture everthing, no IP address
+ monitor_interface          boolean         NOT NULL default 'f',
+ CHECK ((interface_active='t' AND 
+    (subasset_id IS NOT NULL OR raw_interface IS NOT NULL)) OR 
+    interface_active='f'),
+ CHECK ((master_channel IS NOT NULL AND master_interface='t') OR
+    master_channel IS NULL),
+ CHECK ((monitor_interface='t' AND master_interface='f' AND 
+    bridge_interface IS NULL) OR monitor_interface='f')
+);
+CREATE TABLE interface_history (
+ interface_id               integer         NOT NULL,
+ interface_type             integer,
+ host_id                    integer,
+ link_id                    integer,
+ module_id                  integer,
+ ip_address                 inet,
+ name                       varchar(16),
+ use_gateway                boolean,
+ subasset_id                integer,
+ raw_interface              integer,
+ bridge_interface           integer,
+ interface_active           boolean,
+ master_interface           boolean,
+ master_channel             integer,
+ master_mode                varchar(20),
+ alias_netmask              integer,
+ monitor_interface          boolean,
+ changeset                  integer NOT NULL REFERENCES changeset
+    (changeset_id),
+ PRIMARY KEY (interface_id, changeset)
+);
+CREATE TRIGGER interface_t BEFORE INSERT OR UPDATE OR DELETE ON 
+    interface FOR EACH ROW EXECUTE PROCEDURE do_table_history();
+
+CREATE FUNCTION is_attached(bigint, bigint) RETURNS integer AS '
+DECLARE
+    child_asset_id ALIAS FOR $1;
+    parent_asset_id ALIAS FOR $2;
+    current RECORD;
+    result RECORD;
+BEGIN
+    SELECT INTO current * FROM asset_location WHERE asset_id=child_asset_id;
+    IF current.attached_to IS NULL THEN
+        return 0;
+    END IF;
+
+    IF current.attached_to=parent_asset_id THEN
+        RETURN 1;
+    END IF;
+
+    SELECT INTO result 
+        is_attached(current.attached_to, parent_asset_id);
+    IF result.is_attached = 0 THEN
+        RETURN 0;
+    ELSE
+        RETURN 1;
+    END IF;   
+END;
+' LANGUAGE plpgsql;
+CREATE FUNCTION iface_check() RETURNS trigger AS '
+DECLARE
+    subasset_info RECORD;
+    host_info RECORD;
+    result RECORD;
+BEGIN
+    IF NEW.subasset_id IS NULL THEN
+        -- If no subasset assigned, all is OK
+        RETURN NEW;
+    END IF;
+    SELECT INTO host_info asset_id, site_id FROM host WHERE 
+        host_id=NEW.host_id;
+    IF host_info.asset_id IS NOT NULL THEN
+        -- Check that the subasset assigned to the interface is associated
+        -- with the asset assigned to the host either because it is part of
+        -- the host asset, or because it is attached to it
+        SELECT INTO subasset_info asset_id FROM subasset WHERE 
+            subasset_id=NEW.subasset_id;
+        IF subasset_info.asset_id=host_info.asset_id THEN
+            -- Interface subasset is a child of host asset
+            RETURN NEW;
+        END IF;
+        -- Check asset attachments
+        SELECT INTO result 
+            is_attached(subasset_info.asset_id, host_info.asset_id);
+        IF result.is_attached = 1 THEN
+            RETURN NEW;
+        END IF;
+    ELSE
+        -- Host has no asset, check interface asset is at same site as host
+        SELECT INTO subasset_info al.site_id FROM subasset sa, 
+            asset_location al WHERE sa.subasset_id=NEW.subasset_id AND 
+            sa.asset_id=al.asset_id;
+        IF subasset_info.site_id=host_info.site_id THEN
+            -- Same site
+            RETURN NEW;
+        END IF;
+    END IF;
+    -- Not attached and not at same site
+    RAISE EXCEPTION ''Invalid Subasset! Subasset is unrelated to host asset.'';
+END;
+' LANGUAGE plpgsql;
+CREATE TRIGGER iface_subasset_check BEFORE INSERT OR UPDATE ON interface 
+    FOR EACH ROW EXECUTE PROCEDURE iface_check();
+
+-- Services
+CREATE TABLE service (
+ service_id                 SERIAL      PRIMARY KEY,
+ service_name               varchar(64) UNIQUE NOT NULL,
+ enabled                    boolean     NOT NULL DEFAULT 't'
+);
+
+CREATE TABLE service_prop (
+ service_prop_id            SERIAL      PRIMARY KEY,
+ service_id                 integer     NOT NULL REFERENCES
+    service (service_id) ON DELETE CASCADE,
+ prop_name                  varchar(255) NOT NULL,
+ prop_type                  varchar(64) NOT NULL,
+ default_value              varchar(255),
+ required                   boolean     NOT NULL DEFAULT 't'
+);
+
+CREATE TABLE service_host (
+ service_id                 integer     NOT NULL REFERENCES 
+    service (service_id) ON DELETE CASCADE,
+ host_id                    integer     NOT NULL REFERENCES 
+    host (host_id) ON DELETE CASCADE,
+ enabled                    boolean,
+ PRIMARY KEY (service_id, host_id)
+);
+CREATE TABLE service_host_history (
+ service_id                 integer     NOT NULL,
+ host_id                    integer     NOT NULL,
+ enabled                    boolean,
+ changeset                  integer NOT NULL REFERENCES changeset
+    (changeset_id),
+ PRIMARY KEY (service_id, host_id, changeset)
+);
+CREATE TRIGGER service_host_history_t BEFORE INSERT OR UPDATE OR DELETE ON 
+    service_host FOR EACH ROW EXECUTE PROCEDURE do_table_history();
+
+CREATE TABLE service_hostdata (
+ service_id                 integer      NOT NULL REFERENCES 
+    service (service_id) ON DELETE CASCADE,
+ host_id                    integer      NOT NULL REFERENCES 
+    host (host_id) ON DELETE CASCADE,
+ service_prop_id            integer     NOT NULL REFERENCES
+    service_prop (service_prop_id),
+ value                      varchar(256),
+    PRIMARY KEY (service_id, service_prop_id, host_id)
+);
+CREATE TABLE service_hostdata_history (
+ service_id                 integer     NOT NULL,
+ host_id                    integer     NOT NULL,
+ service_prop_id            integer     NOT NULL,
+ value                      varchar(256),
+ changeset                  integer     NOT NULL REFERENCES
+    changeset (changeset_id),
+ PRIMARY KEY (service_id, host_id, service_prop_id, changeset)
+);
+CREATE TRIGGER service_hostdata_history_t BEFORE INSERT OR UPDATE OR DELETE ON 
+    service_hostdata FOR EACH ROW EXECUTE PROCEDURE do_table_history();
+
+CREATE TABLE service_data (
+ service_id                 integer      NOT NULL REFERENCES 
+    service (service_id) ON DELETE CASCADE,
+ service_prop_id            integer     NOT NULL REFERENCES
+    service_prop (service_prop_id),
+ value                      varchar(256),
+    PRIMARY KEY (service_id, service_prop_id)
+);
+CREATE TABLE service_data_history (
+ service_id                 integer     NOT NULL,
+ service_prop_id            integer     NOT NULL,
+ value                      varchar(256),
+ changeset                  integer     NOT NULL REFERENCES
+    changeset (changeset_id),
+ PRIMARY KEY (service_id, service_prop_id, changeset)
+);
+CREATE TRIGGER service_data_history_t BEFORE INSERT OR UPDATE OR DELETE ON 
+    service_data FOR EACH ROW EXECUTE PROCEDURE do_table_history();
+
+-- Two views to assist in determining the Primary Keys of a table
+CREATE VIEW relid_pkeys AS SELECT indrelid AS relid, attname AS column_name
+    FROM pg_index, pg_class, pg_attribute WHERE indisprimary='t' AND 
+    indexrelid=pg_class.oid AND pg_attribute.attrelid=pg_class.relfilenode;
+CREATE VIEW table_pkeys AS SELECT c.relname AS table_name, p.column_name FROM 
+    relid_pkeys p, pg_class c WHERE p.relid=c.relfilenode AND c.relowner!=1 AND
+    c.relkind='r';
+
+-- Two views to assist in determining the columns of a table
+CREATE VIEW relid_columns AS SELECT pg_class.relfilenode AS relid,
+    pg_attribute.attname AS column_name FROM pg_class, pg_attribute 
+    WHERE (((pg_attribute.attrelid = pg_class.relfilenode) AND 
+    (pg_attribute.attnum>0)) AND (pg_attribute.attisdropped IS FALSE));
+CREATE VIEW table_columns AS SELECT c.relname AS table_name, p.column_name
+    FROM relid_columns p, pg_class c WHERE p.relid = c.relfilenode AND 
+    c.relowner <> 1 AND c.relkind = 'r';
+
+-- A nice view to get an easy summary of all assets
+CREATE VIEW asset_list AS SELECT a.asset_id, a.serial_no, a.description,
+    a.date_purchased, a.price, a.supplier, a.asset_type_id, a.label_txt, 
+    a.notes, a.enabled FROM asset a ORDER BY asset_id;
+
+-- Number of subasset types for each asset type
+CREATE VIEW n_subasset_types_by_asset_type AS SELECT at.asset_type_id, count(*)
+    AS no_subasset_types FROM asset_type at, asset_type_subasset ats WHERE
+    at.asset_type_id=ats.asset_type_id group by at.asset_type_id;
+
+-- Number of assets for each asset type
+CREATE VIEW n_assets_by_asset_type AS SELECT at.asset_type_id, count(*)
+    AS no_assets FROM asset_type at, asset a WHERE
+    at.asset_type_id=a.asset_type_id group by at.asset_type_id;
+
+-- Number of hosts (or attached assets) using each asset type
+CREATE VIEW n_hosts_by_asset_type AS SELECT at.asset_type_id, count(*) AS
+    usage_count FROM host h, asset a, asset_location al, asset_type at WHERE
+    a.asset_id=al.asset_id AND (h.asset_id=a.asset_id OR 
+    h.asset_id=al.attached_to) AND a.asset_type_id=at.asset_type_id GROUP BY
+    at.asset_type_id;
+
+-- A list of all properties linked to a subasset, whether they have data or not
+CREATE VIEW subasset_properties AS SELECT sa.subasset_id, ap.description, 
+    sap.required, sap.default_value, sap.subasset_property_id FROM
+    subasset_property sap, subasset sa, asset_type_subasset ats, 
+    asset_property ap WHERE
+    sa.asset_type_subasset_id=ats.asset_type_subasset_id AND
+    ats.subasset_type_id=sap.subasset_type_id AND 
+    sap.asset_property_id=ap.asset_property_id;
+
+-- List of sites with their associated assets
+CREATE VIEW site_assets AS SELECT s.site_id, s.location, al.asset_id,
+    a.description FROM asset a, site s LEFT JOIN asset_location al ON
+    s.site_id=al.site_id WHERE al.asset_id=a.asset_id;
+
+-- List of sites with their associated hosts
+CREATE VIEW site_hosts AS SELECT s.site_id, s."location", h.host_id,
+    h.host_name, h.asset_id, a.description FROM site s, host h LEFT
+    JOIN asset a ON h.asset_id=a.asset_id WHERE h.site_id=s.site_id;
+
+-- Detailed site view
+CREATE VIEW site_detail AS SELECT s.site_id, s.gps_lat, s.gps_long, 
+    s.elevation, s."location", s.admin_contact_id, s.tech_contact_id, 
+    s.comments, c1.givenname || ' ' || c1.surname AS admin_contact_desc,
+    c2.givenname || ' ' || c2.surname AS tech_contact_desc FROM site s,
+    site_contacts c1, site_contacts c2 WHERE s.admin_contact_id=c1.contact_id
+    AND s.tech_contact_id=c2.contact_id;
+
+-- List of available "In stock" assets
+CREATE VIEW assets_avail AS SELECT a.asset_id, a.description, s."location"
+    FROM asset a, asset_location al, site s WHERE a.asset_id = al.asset_id
+    AND al.site_id = s.site_id AND (al.site_id IN ( 
+    SELECT asset_stock_location.site_id FROM asset_stock_location));
+
+-- List of assets available for use as a new host at a site
+CREATE VIEW site_host_assets_avail AS SELECT sa.* FROM site_assets sa, asset a,
+    asset_type_map atm WHERE sa.asset_id=a.asset_id AND 
+    a.asset_type_id=atm.asset_type_id AND atm.asset_function='host' AND
+    sa.asset_id NOT IN (SELECT asset_id FROM site_hosts WHERE 
+    asset_id IS NOT NULL AND site_id=sa.site_id);
+
+-- List of interface subassets available for use on a host
+CREATE VIEW host_asset_interfaces AS SELECT h.host_id, a.asset_id, 
+    sa.subasset_id, ats.name, a.description FROM host h, asset a,
+    asset_location al, asset_type_map atm, subasset sa, 
+    asset_type_subasset ats, subasset_type_map stm WHERE 
+    a.asset_id = sa.asset_id AND a.asset_type_id = atm.asset_type_id AND
+    sa.asset_type_subasset_id = ats.asset_type_subasset_id AND 
+    ats.subasset_type_id = stm.subasset_type_id AND 
+    stm.asset_function::text = 'interface'::text AND 
+    al.asset_id=a.asset_id AND ((h.asset_id=a.asset_id OR 
+    h.asset_id=al.attached_to) OR (al.site_id=h.site_id AND 
+    atm.asset_function::text ='interface'::text));
+
+-- List of all interface subassets
+CREATE VIEW interface_subassets AS SELECT a.asset_id, sa.subasset_id, 
+    ats.name FROM asset a, subasset sa, asset_type_subasset ats, 
+    subasset_type_map stm WHERE a.asset_id = sa.asset_id AND 
+    sa.asset_type_subasset_id = ats.asset_type_subasset_id AND 
+    ats.subasset_type_id = stm.subasset_type_id AND 
+    stm.asset_function = 'interface';
+
+-- List of all interface subassets in stock
+CREATE VIEW interface_subassets_avail AS SELECT isa.* FROM 
+    interface_subassets isa, asset_location al WHERE isa.asset_id=al.asset_id
+    AND al.site_id IN (SELECT site_id FROM asset_stock_location);
+
+-- List of interface subassets present at a site
+CREATE VIEW site_interface_subassets AS SELECT s.site_id, a.asset_id, 
+    s.location, sa.subasset_id, a.description FROM site s, asset a,
+    asset_location al, asset_type_map atm, subasset sa, 
+    asset_type_subasset ats, subasset_type_map stm WHERE 
+    a.asset_id = sa.asset_id AND a.asset_type_id = atm.asset_type_id AND
+    sa.asset_type_subasset_id = ats.asset_type_subasset_id AND 
+    ats.subasset_type_id = stm.subasset_type_id AND 
+    stm.asset_function::text = 'interface'::text AND 
+    al.asset_id=a.asset_id AND al.site_id=s.site_id;
+
+-- List of wireless interfaces available for use on any link
+CREATE VIEW link_wireless_interfaces_avail AS SELECT a.asset_id, 
+    sa.subasset_id, a.description FROM asset a, subasset sa, 
+    asset_type_subasset ats, asset_location al WHERE a.asset_id=sa.asset_id
+    AND sa.asset_type_subasset_id=ats.asset_type_subasset_id AND 
+    ats.subasset_type_id IN (SELECT subasset_type_id FROM subasset_type_map
+    WHERE asset_function = 'wireless_interface') AND a.asset_id=al.asset_id
+    AND al.site_id IN (SELECT site_id FROM asset_stock_location);
+
+-- List of wireless interfaces supporting VAPs available for use on any link
+CREATE VIEW link_vap_interfaces_avail AS SELECT a.asset_id, 
+    sa.subasset_id, a.description FROM asset a, subasset sa, 
+    asset_type_subasset ats, asset_location al WHERE a.asset_id=sa.asset_id
+    AND sa.asset_type_subasset_id=ats.asset_type_subasset_id AND 
+    ats.subasset_type_id IN (SELECT subasset_type_id FROM subasset_type_map
+    WHERE asset_function = 'vap') AND a.asset_id=al.asset_id
+    AND al.site_id IN (SELECT site_id FROM asset_stock_location);
+
+-- View of number of interfaces on a link
+CREATE VIEW link_interface_count AS SELECT link_id, count(*) AS
+    no_interfaces FROM interface GROUP BY link_id;
+
+-- Extending interface list view
+CREATE VIEW interface_linkdescs AS SELECT i.interface_id, i.host_id, 
+    i.link_id, i.module_id, i.ip_address, i.alias_netmask, i.name, 
+    i.use_gateway, i.subasset_id, i.interface_active, i.master_interface,
+    i.monitor_interface, i.bridge_interface, i.interface_type, 
+    i.master_mode, i.master_channel, i.raw_interface, 
+    l.description AS link_desc,  sa.asset_id FROM link l, interface i 
+    LEFT JOIN subasset sa ON i.subasset_id=sa.subasset_id WHERE 
+    i.link_id=l.link_id;
+
+-- Interface locations
+CREATE VIEW interface_gpslocation AS SELECT i.interface_id, i.link_id, 
+    s.gps_lat, s.gps_long FROM interface i, host h LEFT JOIN site s ON
+    h.site_id=s.site_id WHERE i.host_id=h.host_id;
+
+-- Host List
+CREATE VIEW host_list AS SELECT s.site_id, s.location, h.host_id,
+    h.host_name, h.asset_id, h.host_active, a.description FROM host h 
+    LEFT JOIN asset a ON h.asset_id=a.asset_id LEFT JOIN site s ON 
+    h.site_id=s.site_id;
+
+-- Detailed Host View
+CREATE VIEW host_detail AS SELECT h.host_id, h.host_name, h.distribution_id,
+    h.kernel_id, h.asset_id, h.ip_address, h.site_id, h.host_active, 
+    h.is_gateway, s.location, a.description AS asset_desc, 
+    d.description AS distribution_desc, 
+    k.upstream_release || k.local_version AS kernel_desc FROM distribution d,
+    kernel k, host h LEFT JOIN site s ON h.site_id=s.site_id LEFT JOIN 
+    asset a ON h.asset_id=a.asset_id WHERE h.distribution_id=
+    d.distribution_id AND h.kernel_id=k.kernel_id;
+
+-- Mac address to asset mapping
+CREATE VIEW asset_macs AS SELECT a.asset_id, sa.subasset_id, UPPER(d.value) AS
+    mac FROM asset a, subasset sa, asset_data d WHERE a.asset_id=sa.asset_id 
+    AND sa.subasset_id=d.subasset_id AND d.subasset_property_id IN 
+    (SELECT subasset_property_id FROM subasset_property sap, 
+    asset_property ap WHERE upper(ap.description) LIKE '%MAC%' AND 
+    ap.asset_property_id=sap.asset_property_id) AND NOT 
+    (d.value IS NULL OR d.value='');
+
+
+-- Import Base Data
+BEGIN;
+SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+INSERT INTO changeset VALUES (DEFAULT, NOW(), 'admin', 'Initial Data Setup',
+    NULL, 't');
+
+INSERT INTO admin_group VALUES (DEFAULT, 'Administrators', NULL);
+INSERT INTO admin_group VALUES (DEFAULT, 'Users', NULL);
+INSERT INTO admin_group VALUES (DEFAULT, 'Asset Managers', NULL);
+INSERT INTO group_membership(parent_group_id, group_id) VALUES (2, 1);
+INSERT INTO group_membership(parent_group_id, group_id) VALUES (3, 1);
+
+INSERT INTO distribution VALUES (1, 'crcnet', 'CRCnet (based on Debian Stable)', 1);
+INSERT INTO distribution VALUES (2, 'crcnetbpc', 'CRCnet Biscuit PC', 2);
+
+INSERT INTO link_type VALUES ('Managed', 'Wireless Access Point');
+INSERT INTO link_type VALUES ('Ad-Hoc', 'Wireless Ad-Hoc Link');
+INSERT INTO link_type VALUES ('Ethernet', 'Wired Ethernet');
+
+INSERT INTO link_mode VALUES ('a', 'Managed', '802.11a');
+INSERT INTO link_mode VALUES ('a', 'Ad-Hoc', '802.11a');
+INSERT INTO link_mode VALUES ('b', 'Managed', '802.11b (11Mbps)');
+INSERT INTO link_mode VALUES ('b', 'Ad-Hoc', '802.11b (11Mbps)');
+INSERT INTO link_mode VALUES ('g', 'Managed', '802.11g');
+INSERT INTO link_mode VALUES ('g', 'Ad-Hoc', '802.11g');
+INSERT INTO link_mode VALUES ('100', 'Ethernet', '100Mbps FD');
+INSERT INTO link_mode VALUES ('10', 'Ethernet', '10Mbps FD');
+
+INSERT INTO mode_channels VALUES ('b', 1, 'Channel  1 (2.412Ghz)*');
+INSERT INTO mode_channels VALUES ('b', 2, 'Channel  2 (2.417Ghz)');
+INSERT INTO mode_channels VALUES ('b', 3, 'Channel  3 (2.422Ghz)');
+INSERT INTO mode_channels VALUES ('b', 4, 'Channel  4 (2.427Ghz)');
+INSERT INTO mode_channels VALUES ('b', 5, 'Channel  5 (2.432Ghz)');
+INSERT INTO mode_channels VALUES ('b', 6, 'Channel  6 (2.437Ghz)*');
+INSERT INTO mode_channels VALUES ('b', 7, 'Channel  7 (2.442Ghz)');
+INSERT INTO mode_channels VALUES ('b', 8, 'Channel  8 (2.447Ghz)');
+INSERT INTO mode_channels VALUES ('b', 9, 'Channel  9 (2.452Ghz)');
+INSERT INTO mode_channels VALUES ('b', 10, 'Channel 10 (2.457Ghz)');
+INSERT INTO mode_channels VALUES ('b', 11, 'Channel 11 (2.462Ghz)*');
+INSERT INTO mode_channels VALUES ('b', 12, 'Channel 12 (2.467Ghz)#');
+INSERT INTO mode_channels VALUES ('b', 13, 'Channel 13 (2.472Ghz)#');
+INSERT INTO mode_channels VALUES ('b', 14, 'Channel 14 (2.477Ghz)#');
+INSERT INTO mode_channels VALUES ('g', 1, 'Channel  1 (2.412Ghz)*');
+INSERT INTO mode_channels VALUES ('g', 2, 'Channel  2 (2.417Ghz)');
+INSERT INTO mode_channels VALUES ('g', 3, 'Channel  3 (2.422Ghz)');
+INSERT INTO mode_channels VALUES ('g', 4, 'Channel  4 (2.427Ghz)');
+INSERT INTO mode_channels VALUES ('g', 5, 'Channel  5 (2.432Ghz)');
+INSERT INTO mode_channels VALUES ('g', 6, 'Channel  6 (2.437Ghz)*');
+INSERT INTO mode_channels VALUES ('g', 7, 'Channel  7 (2.442Ghz)');
+INSERT INTO mode_channels VALUES ('g', 8, 'Channel  8 (2.447Ghz)');
+INSERT INTO mode_channels VALUES ('g', 9, 'Channel  9 (2.452Ghz)');
+INSERT INTO mode_channels VALUES ('g', 10, 'Channel 10 (2.457Ghz)');
+INSERT INTO mode_channels VALUES ('g', 11, 'Channel 11 (2.462Ghz)*');
+INSERT INTO mode_channels VALUES ('g', 12, 'Channel 12 (2.467Ghz)#');
+INSERT INTO mode_channels VALUES ('g', 13, 'Channel 13 (2.472Ghz)#');
+INSERT INTO mode_channels VALUES ('g', 14, 'Channel 14 (2.477Ghz)#');
+INSERT INTO mode_channels VALUES ('a', 36, 'Channel 36 (5.18Ghz)*');
+INSERT INTO mode_channels VALUES ('a', 40, 'Channel 40 (5.20Ghz)');
+INSERT INTO mode_channels VALUES ('a', 44, 'Channel 44 (5.22Ghz)*');
+INSERT INTO mode_channels VALUES ('a', 48, 'Channel 48 (5.24Ghz)');
+INSERT INTO mode_channels VALUES ('a', 52, 'Channel 52 (5.26Ghz)*');
+INSERT INTO mode_channels VALUES ('a', 56, 'Channel 56 (5.28Ghz)');
+INSERT INTO mode_channels VALUES ('a', 60, 'Channel 60 (5.30Ghz)*');
+INSERT INTO mode_channels VALUES ('a', 64, 'Channel 64 (5.32Ghz)');
+INSERT INTO mode_channels VALUES ('a', 149, 'Channel 149 (5.745Ghz)*');
+INSERT INTO mode_channels VALUES ('a', 153, 'Channel 153 (5.765Ghz)*');
+INSERT INTO mode_channels VALUES ('a', 157, 'Channel 157 (5.785Ghz)*');
+INSERT INTO mode_channels VALUES ('a', 161, 'Channel 161 (5.805Ghz)*');
+
+INSERT INTO event_type VALUES (1, 'Imported', 't');
+INSERT INTO event_type VALUES (2, 'Location Changed', 't');
+INSERT INTO event_type VALUES (3, 'Attached to Asset', 't');
+INSERT INTO event_type VALUES (4, 'Created', 't');
+INSERT INTO event_type VALUES (5, 'Removed from Stock', 'f');
+INSERT INTO event_type VALUES (6, 'Details Updated', 'f');
+INSERT INTO event_type VALUES (7, 'Property Updated', 'f');
+INSERT INTO event_type VALUES (8, 'Subasset Added', 'f');
+INSERT INTO event_type VALUES (9, 'Subasset Removed', 'f');
+INSERT INTO event_type VALUES (10, 'Assigned', 't');
+
+UPDATE changeset SET pending='f' WHERE pending='t' AND username='admin';
+COMMIT;
+-- vim: ft=sql

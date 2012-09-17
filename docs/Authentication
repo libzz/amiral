@@ -1,0 +1,77 @@
+The CRCnet Configuration System uses OpenSSL certificates for mutual authentication of the client and server. Although presently the web interface does not verify the parameters of the server certificate (see Ticket #4)
+
+The following components are needed to get authentication up and running properly:
+
+    1 x Configuration System Certificate Authority
+    1 x Server Key
+    n x Client Keys 
+
+Create your Configuration System CA
+
+$ openssl req -new -out ./ccsd-ca-req.pem -keyout ./ccsd-ca-key.pem
+
+You should sign this with your trusted organisation CA (or some other third party CA) to get your ccsd-ca-cert.pem.
+
+If you just want to create a self-signed certificate you can use:
+
+$ openssl req -new -x509 -nodes -keyout /etc/ccsd/ccsd-ca-key.pem -out /etc/ccsd/ccsd-ca-cert.pem
+
+The configuration server also needs access to the Configuration System CA Certificate in order to verify the client certificate of incoming connetions. You can specify the location of the Configuration System CA Certificate via the configuration file as shown in the example below. The CA cert file passed to the server must contain both the Configuration System CA Certificate and any parent CA certificates that were used to sign it.
+
+cacert=/etc/ccsd/ccsd-ca-certs.pem
+
+Create the server key and sign with the Configuration System CA
+
+$ openssl req -new -nodes -out ./ccsd-server-req.pem -keyout ./ccsd-server-key.pem
+
+The ou field must be identical to your config system CA certificate and the cn field must be "server" (no quotes) as shown in the example below.
+
+Country Name (2 letter code) [AU]:NZ
+State or Province Name (full name) [Some-State]:.
+Locality Name (eg, city) []:Hamilton
+Organization Name (eg, company) [Internet Widgits Pty Ltd]:CRCnet
+Organizational Unit Name (eg, section) []:ccsd
+Common Name (eg, YOUR name) []:server
+Email Address []:you@yoursite.com
+
+Then sign the key with the CA you created in the first step
+
+$ openssl x509 -req -in ccsd-server-req.pem -out ccsd-server-cert.pem \
+    -signkey ccsd-server-key.pem -CA ccsd-ca-cert.pem \
+    -CAkey ccsd-ca-key.pem -CAcreateserial -days 365
+
+The location of the server key is passed to the configuration server via the configuration file. Eg:
+
+server_key=/etc/ccsd/ccsd-server-key.pem
+server_cert=/etc/ccsd/ccsd-server-cert.pem
+
+Create a client key and sign with the Configuration System CA
+
+This step can be performed multiple times for multiple clients
+
+It is suggested that you use the clients hostname as the cn. The placeholder <clientname> is used in the example below. The ou must be identical to the CA certificate
+
+$ openssl req -new -nodes -out ./ccsd-<clientname>-req.pem \
+    -keyout ./ccsd-<clientname>-key.pem
+
+Country Name (2 letter code) [AU]:NZ
+State or Province Name (full name) [Some-State]:.
+Locality Name (eg, city) []:Hamilton
+Organization Name (eg, company) [Internet Widgits Pty Ltd]:CRCnet
+Organizational Unit Name (eg, section) []:ccsd
+Common Name (eg, YOUR name) []:<clientname>
+Email Address []:<your_email>
+
+Once you have created the client key, you can sign it with the CA you created in step 1
+
+$ openssl x509 -req -in ccsd-<clientname>-req.pem \
+    -out ccsd-<clientname>-cert.pem \
+    -signkey ccsd-<clientname>-key.pem -CA ccsd-ca-cert.pem \
+    -CAkey ccsd-ca-key.pem -CAcreateserial -days 365
+
+To configure the web interface to use the client key, specify its location in the web interface configuration file when you are defining the configuration server to connect to. Eg:
+
+addNetwork("Test", "admin.crc.net.nz", "cfengine.crc.net.nz", 1510,
+    "/home/httpd/admin.crc.net.nz/auth/admin.crc.net.nz.pem", "/RPC2", 
+    "matt@crc.net.nz");
+

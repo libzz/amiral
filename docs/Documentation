@@ -1,0 +1,341 @@
+Untar the downloaded source
+run make install-server as root 
+Initialise the database as described at DatabaseInstallation
+
+The CRCnet Configuration System requires a postgres database.
+
+    As the postgres administrative user create a database user and database
+        createuser -P -A ccsd
+        createdb -O ccsd ccsd 
+    If you are not using password authentication remove the -P from the first command above
+    While you are still the postgres administrative user create the procedural languages in the database
+        psql ccsd < /usr/share/ccsd/dbschema/ccs.adminschema 
+    Insert the base database schema
+        psql -U ccsd ccsd < /usr/share/ccsd/dbschema/ccs.schema 
+
+
+Create certificates as described at Authentication
+
+The CRCnet Configuration System uses OpenSSL certificates for mutual authentication of the client and server. Although presently the web interface does not verify the parameters of the server certificate (see Ticket #4)
+
+The following components are needed to get authentication up and running properly:
+
+    1 x Configuration System Certificate Authority
+    1 x Server Key
+    n x Client Keys 
+
+Create your Configuration System CA
+
+$ openssl req -new -out ./ccsd-ca-req.pem -keyout ./ccsd-ca-key.pem
+
+You should sign this with your trusted organisation CA (or some other third party CA) to get your ccsd-ca-cert.pem.
+
+If you just want to create a self-signed certificate you can use:
+
+$ openssl req -new -x509 -nodes -keyout /etc/ccsd/ccsd-ca-key.pem -out /etc/ccsd/ccsd-ca-cert.pem
+
+The configuration server also needs access to the Configuration System CA Certificate in order to verify the client certificate of incoming connetions. You can specify the location of the Configuration System CA Certificate via the configuration file as shown in the example below. The CA cert file passed to the server must contain both the Configuration System CA Certificate and any parent CA certificates that were used to sign it.
+
+cacert=/etc/ccsd/ccsd-ca-certs.pem
+
+Create the server key and sign with the Configuration System CA
+
+$ openssl req -new -nodes -out ./ccsd-server-req.pem -keyout ./ccsd-server-key.pem
+
+The ou field must be identical to your config system CA certificate and the cn field must be "server" (no quotes) as shown in the example below.
+
+Country Name (2 letter code) [AU]:NZ
+State or Province Name (full name) [Some-State]:.
+Locality Name (eg, city) []:Hamilton
+Organization Name (eg, company) [Internet Widgits Pty Ltd]:CRCnet
+Organizational Unit Name (eg, section) []:ccsd
+Common Name (eg, YOUR name) []:server
+Email Address []:you@yoursite.com
+
+Then sign the key with the CA you created in the first step
+
+$ openssl x509 -req -in ccsd-server-req.pem -out ccsd-server-cert.pem \
+    -signkey ccsd-server-key.pem -CA ccsd-ca-cert.pem \
+    -CAkey ccsd-ca-key.pem -CAcreateserial -days 365
+
+The location of the server key is passed to the configuration server via the configuration file. Eg:
+
+server_key=/etc/ccsd/ccsd-server-key.pem
+server_cert=/etc/ccsd/ccsd-server-cert.pem
+
+Create a client key and sign with the Configuration System CA
+
+This step can be performed multiple times for multiple clients
+
+It is suggested that you use the clients hostname as the cn. The placeholder <clientname> is used in the example below. The ou must be identical to the CA certificate
+
+$ openssl req -new -nodes -out ./ccsd-<clientname>-req.pem \
+    -keyout ./ccsd-<clientname>-key.pem
+
+Country Name (2 letter code) [AU]:NZ
+State or Province Name (full name) [Some-State]:.
+Locality Name (eg, city) []:Hamilton
+Organization Name (eg, company) [Internet Widgits Pty Ltd]:CRCnet
+Organizational Unit Name (eg, section) []:ccsd
+Common Name (eg, YOUR name) []:<clientname>
+Email Address []:<your_email>
+
+Once you have created the client key, you can sign it with the CA you created in step 1
+
+$ openssl x509 -req -in ccsd-<clientname>-req.pem \
+    -out ccsd-<clientname>-cert.pem \
+    -signkey ccsd-<clientname>-key.pem -CA ccsd-ca-cert.pem \
+    -CAkey ccsd-ca-key.pem -CAcreateserial -days 365
+
+To configure the web interface to use the client key, specify its location in the web interface configuration file when you are defining the configuration server to connect to. Eg:
+
+addNetwork("Test", "admin.crc.net.nz", "cfengine.crc.net.nz", 1510,
+    "/home/httpd/admin.crc.net.nz/auth/admin.crc.net.nz.pem", "/RPC2", 
+    "matt@crc.net.nz");
+
+Create a configuration file based off the DefaultServerConfiguration
+
+Like every good daemon the Configuration System lets you tell it what to do. You'll need to install a configuration file somewhere (/etc/ccsd/ccsd.conf is a good choice).
+
+The following is an annotated example
+
+# Example Configuration for the CRCnet Configuration Server Daemon
+
+##################################################################################
+# This section specifies general resource locations for the entire server
+[ccsd]
+# Location of the pidfile
+pidfile=/var/run/ccsd/ccsd.pid
+
+# Port to listen for requests on
+#port = 5565
+
+# Directory to read service modules from
+service_lib_dir=/usr/share/ccsd/services
+# Directory to read data for services from (eg. dbschemas etc)
+service_data_dir=/usr/share/ccsd/dbschema
+
+# Location of the SSL certificate for the server
+server_key=/etc/ccsd/ccsd-server-key.pem
+server_cert=/etc/ccsd/ccsd-server-cert.pem
+
+# Location of the SSL Certificate Authority used to sign the server cert
+# and also used to verify incoming certificates
+cacert=/etc/ccsd/cacerts.pem
+
+# Uncomment to enable profiling of all incoming requests
+#profile = 1
+#profile_dir = /tmp/ccsd/profiles/
+
+# Uncomment to change the location of the traceback log that records details of crashes
+#traceback_log = /tmp/ccsd_tbs.log
+
+# Uncomment to change the location of the request log
+#request_log = /var/log/ccsd.log
+
+##################################################################################
+# This section controls the behaviour of user sessions
+[session]
+
+# Close a session after this many minutes of inactivity
+#timeout = 30
+
+# How many minutes are login detail cookies stored for
+#cookie_timeout = 43200
+
+##################################################################################
+# Details about the network managed by this configuration system
+[network]
+admin_email = root@localdomain
+site_name = Default CRCnet Configuration System Location
+site_address = https://admin.localdomain/
+smtp_server = mail.localdomain
+server_name = admin.localdomain
+domain = localdomain
+
+##################################################################################
+# Details about how to access the database
+[database]
+# Host the database server resides on, comment out to use local socket
+host=localhost
+# The name of the database, required.
+database=ccsd
+# The user and password to connect to the database with, comment out to use ident auth
+user=ccsd
+password=ccspass
+
+##################################################################################
+# CFengine integration
+[cfengine]
+
+# The directory to read configuration templates from 
+template_dir=/usr/share/ccsd/templates
+
+# Where to store generated template modules
+template_module_dir=/var/lib/ccsd
+
+# The location of a subversion repository to store generated configurations
+# This will be created when the program is first run if it does not exist
+config_svnroot=file:///var/lib/svn/ccs-configs
+
+# The base directory where the CFengine configuration is stored
+cfbase_dir=/var/lib/cfengine2
+
+# Uncomment to automatically update the CFengine configuration in cfbase_dir when a 
+# new configuration revision is checked in to the configuration repository
+#autoupdate=1
+
+run ccsd -c <location of configuration file> 
+
+Initialise the database as described at DatabaseInstallation
+Create certificates as described at Authentication
+Create a configuration file based off the DefaultServerConfiguration
+run ccsd -c <location of configuration file>
+
+Installing the Web Interface (ccsweb)
+
+    Untar the downloaded source into a directory, we will refer to this directory as ccsweb_base
+    Install the DefaultApacheConfiguration at <ccsweb_base>/httpd.conf
+
+    Replace <server-ip> with the address of your server
+    Replace <ccsweb_base> with the directory you untarred ccsweb into
+    Replace <servername> with the DNS name of your server (eg. admin.example.com)
+
+    <VirtualHost <server-ip>:443>
+            SSLEngine on
+            ServerAdmin webmaster@localdomain
+            DocumentRoot <ccsweb_base>/html/
+            ServerName <servername>
+            ErrorLog <ccsweb_base>/logs/error.log
+            CustomLog <ccsweb_base>/logs/caccess.log combined
+
+            Alias /img/ <ccsweb_base>/html-aliases/img/
+            Alias /certs/ <ccsweb_base>/html-aliases/certs/
+            Alias /mods/ <ccsweb_base>/ccs_mods/
+
+            # Modify this to suit your security requirements
+            # The default configuration shown below will allow
+            # access from a trusted network without a password
+            # or from anywhere with a password.
+            #
+            # NOTE: This is only for HTTP access to the interface
+            # it does not replace the Configuration System's 
+            # own authentication system.
+            <Location />
+                    Order deny,allow
+                    Deny from all
+                    allow from <trusted_network>/24
+                    AuthName "Network Administration"
+                    AuthType Basic
+                    # You will need to create this file with htpasswd
+                    AuthUserFile <ccsweb_base>/auth/ccsweb.passwd
+                    require valid-user
+                    Satisfy any
+            </Location>
+
+            php_value include_path ".:/usr/share/php:<ccsweb_base>/html:<ccsweb_base>/ccs_mods"
+    </VirtualHost>
+
+    # Ensure this host is only ever accessed via SSL
+    <VirtualHost *>
+            ServerAdmin webmaster@localdomain
+            DocumentRoot <ccsweb_base>/html/
+            ServerName <servername>
+            ErrorLog <ccsweb_base>/logs/error.log
+            CustomLog <ccsweb_base>/logs/caccess.log combined
+
+            RedirectPermanent / https://<servername>/
+    </VirtualHost>
+
+
+
+    Create a client certificate as described in Authentication
+
+
+The CRCnet Configuration System uses OpenSSL certificates for mutual authentication of the client and server. Although presently the web interface does not verify the parameters of the server certificate (see Ticket #4)
+
+The following components are needed to get authentication up and running properly:
+
+    1 x Configuration System Certificate Authority
+    1 x Server Key
+    n x Client Keys 
+
+Create your Configuration System CA
+
+$ openssl req -new -out ./ccsd-ca-req.pem -keyout ./ccsd-ca-key.pem
+
+You should sign this with your trusted organisation CA (or some other third party CA) to get your ccsd-ca-cert.pem.
+
+If you just want to create a self-signed certificate you can use:
+
+$ openssl req -new -x509 -nodes -keyout /etc/ccsd/ccsd-ca-key.pem -out /etc/ccsd/ccsd-ca-cert.pem
+
+The configuration server also needs access to the Configuration System CA Certificate in order to verify the client certificate of incoming connetions. You can specify the location of the Configuration System CA Certificate via the configuration file as shown in the example below. The CA cert file passed to the server must contain both the Configuration System CA Certificate and any parent CA certificates that were used to sign it.
+
+cacert=/etc/ccsd/ccsd-ca-certs.pem
+
+Create the server key and sign with the Configuration System CA
+
+$ openssl req -new -nodes -out ./ccsd-server-req.pem -keyout ./ccsd-server-key.pem
+
+The ou field must be identical to your config system CA certificate and the cn field must be "server" (no quotes) as shown in the example below.
+
+Country Name (2 letter code) [AU]:NZ
+State or Province Name (full name) [Some-State]:.
+Locality Name (eg, city) []:Hamilton
+Organization Name (eg, company) [Internet Widgits Pty Ltd]:CRCnet
+Organizational Unit Name (eg, section) []:ccsd
+Common Name (eg, YOUR name) []:server
+Email Address []:you@yoursite.com
+
+Then sign the key with the CA you created in the first step
+
+$ openssl x509 -req -in ccsd-server-req.pem -out ccsd-server-cert.pem \
+    -signkey ccsd-server-key.pem -CA ccsd-ca-cert.pem \
+    -CAkey ccsd-ca-key.pem -CAcreateserial -days 365
+
+The location of the server key is passed to the configuration server via the configuration file. Eg:
+
+server_key=/etc/ccsd/ccsd-server-key.pem
+server_cert=/etc/ccsd/ccsd-server-cert.pem
+
+Create a client key and sign with the Configuration System CA
+
+This step can be performed multiple times for multiple clients
+
+It is suggested that you use the clients hostname as the cn. The placeholder <clientname> is used in the example below. The ou must be identical to the CA certificate
+
+$ openssl req -new -nodes -out ./ccsd-<clientname>-req.pem \
+    -keyout ./ccsd-<clientname>-key.pem
+
+Country Name (2 letter code) [AU]:NZ
+State or Province Name (full name) [Some-State]:.
+Locality Name (eg, city) []:Hamilton
+Organization Name (eg, company) [Internet Widgits Pty Ltd]:CRCnet
+Organizational Unit Name (eg, section) []:ccsd
+Common Name (eg, YOUR name) []:<clientname>
+Email Address []:<your_email>
+
+Once you have created the client key, you can sign it with the CA you created in step 1
+
+$ openssl x509 -req -in ccsd-<clientname>-req.pem \
+    -out ccsd-<clientname>-cert.pem \
+    -signkey ccsd-<clientname>-key.pem -CA ccsd-ca-cert.pem \
+    -CAkey ccsd-ca-key.pem -CAcreateserial -days 365
+
+To configure the web interface to use the client key, specify its location in the web interface configuration file when you are defining the configuration server to connect to. Eg:
+
+addNetwork("Test", "admin.crc.net.nz", "cfengine.crc.net.nz", 1510,
+    "/home/httpd/admin.crc.net.nz/auth/admin.crc.net.nz.pem", "/RPC2", 
+    "matt@crc.net.nz");
+
+    Add an approprite entry to html/lib/ccsweb.conf eg.
+
+    // addNetwork(name, site, server, port, cert, server_path, admin_email)
+    addNetwork("Site Name", "admin.localdomain", "ccsd.localdomain", 5565, 
+        "/path/to/webcert.pem", "/RPC2", "root@localdomain");
+
+    Add an Include line to your apache.conf to enable the configuration, eg.
+
+    Include <ccsweb_base>/httpd.conf
+ 

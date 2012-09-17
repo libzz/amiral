@@ -1,0 +1,91 @@
+-- 
+-- PostgreSQL schema for Quagga Service
+--
+-- Author:   Matt Brown  <matt@crc.net.nz>
+-- Version:  $Id: ccs.schema 255 2005-10-17 22:52:45Z mglb1 $
+--
+
+--DROP TRIGGER quagga_statics_history_t ON quagga_statics;
+--DROP TABLE quagga_statics_history CASCADE;
+--DROP TABLE quagga_statics CASCADE;
+
+--DROP TRIGGER quagga_ospf_interface_history_t ON quagga_ospf_interface;
+--DROP TABLE quagga_ospf_interface_history CASCADE;
+--DROP TABLE quagga_ospf_interface CASCADE;
+
+--DROP TRIGGER quagga_ospf_area_history_t ON quagga_ospf_area;
+--DROP TABLE quagga_ospf_area_history CASCADE;
+--DROP TABLE quagga_ospf_area;
+
+-- One entry in this table for each OSPF area on the network
+-- Backbone, area 0 doesn't need to be in here
+CREATE TABLE quagga_ospf_area (
+ area_no                integer     NOT NULL PRIMARY KEY,
+ link_class_id          integer     REFERENCES
+    link_class (link_class_id)
+);
+CREATE TABLE quagga_ospf_area_history (
+ area_no                integer     NOT NULL,
+ link_class_id          integer,
+ changeset              integer     NOT NULL REFERENCES
+    changeset (changeset_id),
+ PRIMARY KEY(area_no, changeset)
+);
+CREATE TRIGGER quagga_ospf_area_history_t BEFORE INSERT OR UPDATE OR DELETE ON
+    quagga_ospf_area FOR EACH ROW EXECUTE PROCEDURE do_table_history();
+
+-- One entry in this table for each interface on a host that should be
+-- speakign OSPF
+CREATE TABLE quagga_ospf_interface (
+ host_id                integer     NOT NULL REFERENCES 
+    host (host_id) ON DELETE CASCADE,
+ interface_id           integer     NOT NULL REFERENCES 
+    interface (interface_id) ON DELETE CASCADE,
+ area_no                integer     REFERENCES quagga_ospf_area (area_no),
+ priority               integer,
+ md5_auth               boolean     NOT NULL DEFAULT 't',
+ md5_key                varchar(32),
+ PRIMARY KEY (host_id, interface_id)
+);
+CREATE TABLE quagga_ospf_interface_history (
+ host_id                integer     NOT NULL,
+ interface_id           integer     NOT NULL,
+ area_no                integer,
+ priority               integer,
+ md5_auth               boolean,
+ md5_key                varchar(32),
+ changeset              integer     NOT NULL REFERENCES
+    changeset (changeset_id),
+ PRIMARY KEY(host_id, interface_id, changeset)
+);
+CREATE TRIGGER quagga_ospf_interface_history_t BEFORE INSERT OR UPDATE OR
+    DELETE ON quagga_ospf_interface FOR EACH ROW EXECUTE PROCEDURE 
+    do_table_history();
+
+
+-- One entry in this table for each static route that should be advertised
+-- by a host
+CREATE TABLE quagga_statics (
+ static_id              SERIAL      PRIMARY KEY,
+ host_id                integer     NOT NULL REFERENCES 
+    host (host_id) ON DELETE CASCADE,
+ description            varchar(255) NOT NULL,
+ prefix                 cidr        NOT NULL,
+ next_hop               inet        NOT NULL,
+ metric                 integer
+);
+CREATE TABLE quagga_statics_history (
+ static_id              integer     NOT NULL,
+ host_id                integer,
+ description            varchar(255),
+ prefix                 cidr,
+ next_hop               inet,
+ metric                 integer,
+ changeset              integer     NOT NULL REFERENCES
+    changeset (changeset_id),
+ PRIMARY KEY (static_id, changeset)
+);
+CREATE TRIGGER quagga_statics_history_t BEFORE INSERT OR UPDATE OR
+    DELETE ON quagga_statics FOR EACH ROW EXECUTE PROCEDURE 
+    do_table_history();
+ 

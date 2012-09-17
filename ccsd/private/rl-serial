@@ -1,0 +1,248 @@
+#!/usr/bin/python
+# Copyright (C) 2006  The University of Waikato
+#
+# This file is part of crcnetd - CRCnet Configuration System Daemon
+#
+# Rural Link autoconfiguration and management functionality
+#
+# Author:       Matt Brown <matt@crc.net.nz>
+# Version:      $Id$
+#
+# No usage or redistribution rights are granted for this file unless
+# otherwise confirmed in writing by the copyright holder.
+import sys
+
+RL_NODE = -1
+RL_INTERNAL = 0
+RL_AP0 = 1
+RL_AP1 = 2
+RL_AP2 = 3
+
+# These parameters are currently configured to generate a /26 for 
+# each node based on the RL_BASE of 12 bits + 14 bits of serial 
+# number. Two bits are then allocated for a function on each node
+# giving a total of 4 /28s per node.
+# RL_BASE = hex(172.16.0.0)
+RL_BASE_S = "172.16.0.0"
+RL_MASK_S = "255.240.0.0"
+RL_BASE = 0xAC100000
+BASE_BITS = 12
+SERIAL_BITS = 14
+FUNCTION_BITS = 2
+
+# The following constants are calculated automatically from the values above
+BASE_SHIFT = 32 - BASE_BITS
+SERIAL_SHIFT = BASE_SHIFT - SERIAL_BITS
+FUNCTION_SHIFT = SERIAL_SHIFT - FUNCTION_BITS
+
+BASE_MASK = (((2 ** BASE_BITS) - 1) << BASE_SHIFT)
+SERIAL_MASK =  (((2 ** SERIAL_BITS) - 1) << SERIAL_SHIFT)
+FUNCTION_MASK = (((2 ** FUNCTION_BITS) - 1) << FUNCTION_SHIFT)
+
+##############################################################################
+# Utility Functions
+##############################################################################
+def bitsToNetmask(length):
+    """Retuns an integer netmask representing the given number of bits"""
+    return (2 ** length) - 1L << (32 - length)
+    
+def netmaskToBits(bits):
+    """Returns an integer represnting the bitlength of the given netmask"""
+    if bits==0: return 0
+    pos = 0
+    while ((2**pos) & bits) == 0:
+        pos+=1
+    return 32-pos
+def cidrToNetwork(cidr_network):
+    """Returns an integer network address from a CIDR string of the network"""
+    validateCIDR(cidr_network)
+    parts = str(cidr_network).split('/')
+    return ipnum(parts[0]) & bitsToNetmask(int(parts[1]))
+
+def cidrToNetworkS(cidr_network):
+    """Returns a string network address from a CIDR string of the network"""
+    return formatIP(cidrToNetwork(cidr_network))
+
+def cidrToNetmask(cidr_network):
+    """Returns an integer netmask from a CIDR string of the network"""
+    validateCIDR(cidr_network)
+    bits = int(str(cidr_network).split('/')[1])
+    return bitsToNetmask(bits)
+
+def cidrToIP(cidr_network):
+    validateCIDR(cidr_network)
+    return str(cidr_network).split('/')[0]
+
+def cidrToNetmaskS(cidr_network):
+    """Returns a string netmask from a CIDR string of the network"""
+    return formatIP(cidrToNetmask(cidr_network))
+
+def cidrToBroadcast(cidr_network):
+    """Returns the broadcast address from a CIDR string of the network"""
+    validateCIDR(cidr_network)
+    parts = str(cidr_network).split('/')
+    netmask = bitsToNetmask(int(parts[1]))
+    return ipbroadcast(ipnum(parts[0]), netmask)
+
+def cidrToBroadcastS(cidr_network):
+    """Returns a string broadcast address from a CIDR string of the network"""
+    return formatIP(cidrToBroadcast(cidr_network))
+
+def cidrToLength(cidr_network):
+    """Returns the mask length portion of a CIDR address"""
+    validateCIDR(cidr_network)
+    return int(str(cidr_network).split('/')[1])
+
+def ipnetwork(ip, netmask):
+    """Calculate an integer network address from a given ip and netmask"""
+    return ip & netmask
+
+def ipbroadcast(ip, netmask):
+    """Claculate an integer broadcast address from a given ip and netmask"""
+    return (ip & netmask) | (pow(2L,32)-1-netmask)
+
+def inNetwork(ip, network, netmask):
+    """Returns true if the specified IP is part of the specified network"""
+    return (ip & netmask)==network
+
+def ipnum(ip_netmask):
+    """Convert a IP string into an integer"""
+    if (ip_netmask == 0):
+        return 0
+    else:
+        return reduce(lambda a,b:a*256+b,
+                      map(int, str(ip_netmask).split(".")),0L)
+
+def ipcmp(a, b):
+    """Compare two IP addresses"""
+    return cmp(ipnum(a), ipnum(b))
+            
+def formatIP(ip):
+    """Returns a string formatted IP address from a numeric ip"""
+    
+    # Make sure our input is valid
+    try:
+        ip = int(ip)
+    except ValueError:
+        return ""
+    
+    result = ""
+    
+    # Move "left" along the integer prepending the octets to the string
+    step = 256
+    for i in range(1,5):
+       result = ".%s%s" % (str(ip%step), result)
+       ip /= step
+    
+    # First char will be an extra ., strip it and return
+    return result[1:]
+
+def formatIPB(ip):
+    """Returns a binary string formatted IP address from a numeric ip"""
+    
+    # Make sure our input is valid
+    try:
+        ip = int(ip)
+    except ValueError:
+        return ""
+    
+    result = ""
+    
+    # Move "left" along the integer prepending the octets to the string
+    step = 256
+    for i in range(1,5):
+        bits = ip%step
+        result = ".%s%s" % (binary(bits), result)
+        ip /= step
+    
+    # First char will be an extra ., strip it and return
+    return result[1:]
+
+def binary(bits):
+    """Returns a binary string for the specified octet"""
+    # Make sure our input is valid
+    try:
+        ip = int(ip)
+    except ValueError:
+        return ""
+    str = ""
+    pos = 0
+    while pos < 8:
+        if (bits & (2**pos)) != 0:
+            str = "1%s" % str
+        else:
+            str = "0%s" % str
+        pos+=1
+    return str
+
+def validateCIDR(cidr_network):
+    """Checks that the specified network in cidr format is valid"""
+    parts = str(cidr_network).split('/')
+    if len(parts) != 2:
+        raise ccsd_error("Invalid CIDR format! %s" % cidr_network)
+    try:
+        if int(parts[1]) < 0 or int(parts[1]) > 32:
+            raise ccsd_error("Invalid bitmask in CIDR expression! %s" % \
+                    cidr_network)
+    except:
+        raise ccsd_error("Invalid bitmask in CIDR expression! %s" % \
+                cidr_network)
+    octets = parts[0].split(".")
+    if len(octets) != 4:
+        raise ccsd_error("Invalid IP format! %s" % cidr_network)
+    for octet in octets:
+        try:
+            if int(octet) < 0 or int(octet)>255:
+                raise ccsd_error("Invalid octet value in CIDR expression!" \
+                        "%s" % cidr_network)
+        except:
+            raise ccsd_error("Invalid octet value in CIDR expression! %s" % \
+                    cidr_network)
+    
+    return
+
+
+def generateRLNetwork(serialno, function):
+    """Generates a network address for the specified device and function
+    
+    Returns a tuple with two items. The first is the network address. The
+    second describes how many bits long the netmask is.
+    """
+    
+    if function == RL_NODE:
+        function = 0
+        mask = 32 - SERIAL_SHIFT
+    else:
+        mask = 32 - FUNCTION_SHIFT
+    
+    return (RL_BASE | ((serialno << SERIAL_SHIFT) & SERIAL_MASK) | \
+            ((function << FUNCTION_SHIFT) & FUNCTION_MASK), mask)
+
+
+if len(sys.argv) < 2:
+    sys.stderr.write("Usage: %s <serialno>\n" % sys.argv[0])
+    sys.exit(1)
+
+print "RuralLink Serial Number <=> IP Utility"
+print "======================================"
+print ""
+print "Serial #: %s" % sys.argv[1]
+print ""
+network, bits = generateRLNetwork(int(sys.argv[1]), RL_NODE)
+print "Node Range:  %s/%s" % (formatIP(network), bits)
+network, bits = generateRLNetwork(int(sys.argv[1]), RL_INTERNAL)
+netmask = bitsToNetmask(bits)
+bcast = ipbroadcast(network, netmask)
+print "Internal IP: %s/%s (top)" % (formatIP(bcast-1), bits)
+network, bits = generateRLNetwork(int(sys.argv[1]), RL_AP0)
+netmask = bitsToNetmask(bits)
+bcast = ipbroadcast(network, netmask)
+print "AP0 IP:      %s/%s (bottom)" % (formatIP(network+1), bits)
+network, bits = generateRLNetwork(int(sys.argv[1]), RL_AP1)
+netmask = bitsToNetmask(bits)
+bcast = ipbroadcast(network, netmask)
+print "AP1 IP:      %s/%s (bottom)" % (formatIP(network+1), bits)
+network, bits = generateRLNetwork(int(sys.argv[1]), RL_AP2)
+netmask = bitsToNetmask(bits)
+bcast = ipbroadcast(network, netmask)
+print "AP2 IP:      %s/%s (bottom)" % (formatIP(network+1), bits)

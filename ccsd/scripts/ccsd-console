@@ -1,0 +1,115 @@
+#!/usr/bin/python2.4
+# Copyright (C) 2006  The University of Waikato
+#
+# This file is part of crcnetd - CRCnet Configuration System Daemon
+#
+# Retrieves the latest CRL from the configuration system
+#
+# Author:       Matt Brown <matt@crc.net.nz>
+# Version:      $Id$
+#
+# crcnetd is free software; you can redistribute it and/or modify it under the
+# terms of the GNU General Public License version 2 as published by the Free
+# Software Foundation.
+#
+# crcnetd is distributed in the hope that it will be useful, but WITHOUT ANY
+# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
+# details.
+#
+# You should have received a copy of the GNU General Public License along with
+# crcnetd; if not, write to the Free Software Foundation, Inc.,
+# 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+import sys
+import os
+import readline
+import atexit
+import httplib
+import xmlrpclib
+import code
+import time
+
+# Get hostname, certificates from the commandline
+if len(sys.argv) < 4:
+    sys.stderr.write("Usage: %s [-S] <server> <key> <cert>\n" % 
+            sys.argv[0])
+    sys.exit(1)
+
+use_ssl = True
+if sys.argv[1] == "-S":
+    use_ssl = False
+    sys.argv[1:] = sys.argv[2:]
+server = sys.argv[1]
+key = sys.argv[2]
+cert = sys.argv[3]
+
+# HTTPS transport object
+class MyTransport(xmlrpclib.Transport):
+    """XMLRPC Transport to create an HTTPS connection using client certs"""
+
+    def __init__(self, use_ssl=True):
+        self._use_ssl = use_ssl
+
+    def make_connection(self, host):
+        """Overrides the standard make_connection method
+
+        Specifies client certificates for the connection
+        """
+        
+        host, extra_headers, x509 = self.get_host_info(host)
+        if self._use_ssl:
+            try:
+                HTTPS = httplib.HTTPS
+            except AttributeError:
+                raise NotImplementedError(
+                        "your version of httplib doesn't support HTTPS"
+                    )
+            else:
+                return HTTPS(host, None, key_file=key, cert_file=cert);
+        else:
+            return httplib.HTTP(host, None)
+
+    def request(self, host, handler, request_body, verbose=0):
+        start = time.time()
+        rv = xmlrpclib.Transport.request(self, host, handler, request_body, verbose)
+        sys.stdout.write("Request parsed in %.4f seconds\n" % (time.time()-start))
+        return rv
+
+# Add Readline history to the console
+class HistoryConsole(code.InteractiveConsole):
+    def __init__(self, locals=None, filename="<console>",
+                 histfile=os.path.expanduser("~/.ccsd-console-history")):
+        code.InteractiveConsole.__init__(self, locals)
+        self.init_history(histfile)
+
+    def init_history(self, histfile):
+        readline.parse_and_bind("tab: complete")
+        if hasattr(readline, "read_history_file"):
+            try:
+                readline.read_history_file(histfile)
+            except IOError:
+                pass
+            atexit.register(self.save_history, histfile)
+
+    def save_history(self, histfile):
+        readline.write_history_file(histfile)
+
+# Connect to the server 
+s = xmlrpclib.ServerProxy("https://%s/RPC2" % server, MyTransport(use_ssl))
+
+# Query to get the servers version, this acts as a check that a valid 
+# server was specified
+try:
+    v = s.getVersion()
+    if not v.startswith("CRCnet Configuration System"):
+        sys.stderr.write("Invalid Server!\n")
+        sys.exit(1)
+except:
+    (etype, value, tb) = sys.exc_info()
+    sys.stderr.write("Invalid Server! - %s\n" % value)
+    sys.exit(1)
+
+# Pass the server object to the console and hand over control
+c = HistoryConsole({"s":s, "__name__":"CCSD Console"})
+c.interact("Connected to '%s' at %s\nServer object available as 's'\n" % \
+        (v, server))

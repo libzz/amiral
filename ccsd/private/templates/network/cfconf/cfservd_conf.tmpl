@@ -1,0 +1,80 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+This template controls the operation of the CFengines server on a host
+*#
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "cfservd.conf"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict with CFengine
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+#############################################################
+#
+# cfservd.conf -- for %domain
+# $Date$
+#
+# This file contains configuration for the CFengine server 
+# than runs on each host.
+#
+# WARNING: Do not modify this file since it is automatically
+#          generated
+#
+#############################################################
+
+control:
+
+    any::
+        domain = ( %domain )
+        policyip = ( %policy_ip )
+
+        cfrunCommand = ( "/usr/sbin/cfagent" )
+
+        # Connecting user must be root or cfengine
+        AllowUsers = ( root cfengine )
+
+        # Only allow connections from the policy server
+        AllowConnectionsFrom = ( $(policyip) )
+
+        IfElapsed = ( 0 )
+        ExpireAfter = ( 15 )
+        MaxConnections = ( 5 )
+        MultipleConnections = ( false )
+        LogAllConnections = ( true )
+
+groups:
+
+    any::
+        CPE = ( FileExists(/etc/cpe_version) )
+
+import:
+
+    !CPE::
+        cf.hostvars
+
+###########################################################
+
+grant:
+
+    any::
+
+        # Make sure there is permission to execute by cfrun when connecting
+        # from the central server
+        /usr/sbin/cfagent       $(policyip)
+
+# No files can be copied from these machines
+
+###########
+#
+# END cfservd.conf
+#
+###########

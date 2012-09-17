@@ -1,0 +1,69 @@
+#!/usr/bin/python2.4
+# Copyright (C) 2006  The University of Waikato
+#
+# This file is part of crcnetd - CRCnet Configuration System Daemon
+#
+# Retrieves the latest CRL from the configuration system
+#
+# Author:       Matt Brown <matt@crc.net.nz>
+# Version:      $Id$
+#
+# crcnetd is free software; you can redistribute it and/or modify it under the
+# terms of the GNU General Public License version 2 as published by the Free
+# Software Foundation.
+#
+# crcnetd is distributed in the hope that it will be useful, but WITHOUT ANY
+# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
+# details.
+#
+# You should have received a copy of the GNU General Public License along with
+# crcnetd; if not, write to the Free Software Foundation, Inc.,
+# 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+import sys
+import os
+import time
+import httplib
+import xmlrpclib
+
+# Get hostname, certificates from the commandline
+if len(sys.argv) < 4:
+    sys.stderr.write("Usage: %s <server> <key> <cert> [output file]\n" % 
+            sys.argv[0])
+    sys.exit(1)
+
+server = sys.argv[1]
+key = sys.argv[2]
+cert = sys.argv[3]
+outputfile = None
+if len(sys.argv) >= 5:
+    outputfile = sys.argv[4]
+
+class MyTransport(xmlrpclib.Transport):
+    """XMLRPC Transport to create an HTTPS connection using client certs"""
+
+    def make_connection(self, host):
+        """Overrides the standard make_connection method
+
+        Specifies client certificates for the connection
+        """
+        
+        host, extra_headers, x509 = self.get_host_info(host)
+        try:
+            HTTPS = httplib.HTTPS
+        except AttributeError:
+            raise NotImplementedError(
+                "your version of httplib doesn't support HTTPS"
+            )
+        else:
+            return HTTPS(host, None, key_file=key, cert_file=cert);
+
+s = xmlrpclib.ServerProxy("https://%s/RPC2" % server, MyTransport())
+
+crl = s.fetchCRL({})
+if outputfile is None:
+    print crl
+else:
+    fp = open(outputfile, "w")
+    fp.write(crl)
+    fp.close()

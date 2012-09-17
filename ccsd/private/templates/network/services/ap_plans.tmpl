@@ -1,0 +1,11 @@
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#set $hostapd = $services["hostapd"]
+#for $plan_name,$plan in $hostapd.plans.items()
+$plan_name $plan.downstream_kbps $plan.upstream_kbps
+#end for

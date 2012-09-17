@@ -1,0 +1,4 @@
+You need a working apache and php4
+
+apt-get install smarty
+apt-get install php4-curl

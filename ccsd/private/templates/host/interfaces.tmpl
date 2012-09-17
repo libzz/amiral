@@ -1,0 +1,174 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+This template creates the interface configuration file
+*#
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#from crcnetd.modules.ccs_asset import ccs_subasset
+#from crcnetd.modules.ccs_interface import ccs_interface
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict with CFengine
+EOLSlurpToken = ^^^
+#end compiler-settings
+#if "hostapd" in $services.keys()
+    #set $hostapd = $services["hostapd"]
+#else
+    #set $hostapd = None
+#end if
+##
+## Real template output starts below here
+##
+#
+# CRCnet Biscuit PC Interface Configuration
+#
+# This file was automatically generated on the date below, DO NOT EDIT
+# \$Date$
+
+auto lo
+iface lo inet loopback
+
+auto dummy0
+iface dummy0 inet static
+    address $ip_address
+    netmask 255.255.255.255
+
+#for $name,$iface in $interfaces.items()
+    ## Skip unconfigured interfaces
+    #if $iface.interface_id == ""
+        #continue
+    #end if
+    ## Determine whether the interface is active    
+    #if $iface.interface_active
+        #set c=""
+        #if $iface.interface_type == 2
+            ## Get subasset object for VAP testing
+            #set $sa = ccs_subasset($session_id, $iface.subasset_id)
+        #else
+            #set $sa = None
+        #end if
+    #else
+        #set c="#"
+        #set $sa = None
+    #end if
+    ## Output the start of the interface stanza
+    #if $iface.bridge_interface!="" or len($iface.bridge_with)>0
+# $iface.name is bridged onto $iface.bridge_interface_name-br
+        #if len($c)>0
+# however, $iface.name is also disabled in the configuration system
+        #end if
+        ## Test for VAP
+        #if $sa is not None and $sa.supportsFunction("vap")
+${c}iface $iface.name inet manual
+        #end if
+    #else
+        #if len($c)>0
+# $iface.name is disabled in the configuration system
+        #else
+auto $iface.name
+        #end if
+        ## Add hostapd allow- class line if necessary
+        #if $hostapd is not None and $hostapd.interfaceEnabled($session_id, $iface.interface_id)
+allow-hostapd $iface.name
+        #end if
+        #if $iface.ip_address ==""
+${c}iface $iface.name inet manual
+            #if $iface.interface_type == 3
+                #for $rawname, $rawface in $interfaces.items()
+                    #if $rawface.interface_id == $iface.raw_interface
+$c    vlan-raw-device $rawname
+                        #break
+                    #end if
+                #end for
+            #end if
+$c    up /sbin/ip link set up dev $iface.name
+$c    down /sbin/ip link set down dev $iface.name
+        #else
+${c}iface $iface.name inet static
+            #if $iface.interface_type == 3
+                #for $rawname, $rawface in $interfaces.items()
+                    #if $rawface.interface_id == $iface.raw_interface
+$c    vlan-raw-device $rawname
+                        #break
+                    #end if
+                #end for
+            #end if
+$c    address $iface.ip_address
+$c    netmask $iface.netmask
+$c    network $iface.network
+$c    broadcast $iface.broadcast
+            #if $iface.use_gateway
+$c    gateway $iface.gateway
+            #end if
+        #end if
+    #end if
+    #if $sa is not None and $sa.supportsFunction("vap")
+        ## Output base device
+$c    madwifi_base  vbase$iface.subasset_id
+        ## Set link distance to 15% longer than calculated for tolerances
+        #set $dist=max(int($iface.link_length+(0.15 * $iface.link_length)),3000)
+$c    madwifi_distance $dist
+    #end if
+    ## Output generic wireless configuration
+    #if $iface.wireless_interface
+        #if $iface.master_interface
+$c    wireless_mode Master 
+        #else
+            #if $iface.type == "Ad-Hoc" and ($sa is not None and $sa.supportsFunction("vap"))
+$c    wireless_mode PIM
+            #else
+$c    wireless_mode $iface.type
+            #end if
+        #end if
+        #if $iface.mode != "b" or ($sa is not None and $sa.supportsFunction("vap"))
+$c    wireless_standard $iface.mode
+        #end if
+        #if $iface.type != "Managed" or $iface.master_interface
+$c    wireless_channel $iface.channel
+        #end if
+$c    wireless_essid $iface.essid
+        ## Add hostapd startup stanza if necessary
+        #if $hostapd is not None and $hostapd.interfaceEnabled($session_id, $iface.interface_id)
+$c    hostapd_config /etc/hostapd/hostapd-${iface.name}.conf
+        #end if
+    #end if
+    ## Create bridge interface if required
+    #if len($iface.bridge_with)>0
+        #if len($c)>0
+# $iface.name-br is disabled in the configuration system
+        #else
+auto $iface.name-br
+        #end if
+${c}iface $iface.name-br inet static
+$c    address $iface.ip_address
+$c    netmask $iface.netmask
+$c    network $iface.network
+$c    broadcast $iface.broadcast
+        #if $iface.use_gateway
+$c    gateway $iface.gateway
+        #end if
+        #set $tmp=" ".join($iface.bridge_with)
+$c    bridge_ports $iface.name $tmp
+        #set $mwports=""
+        #for $bport in $iface.bridge_with
+            #set $bpsa = $ccs_subasset($session_id, $interfaces[$bport]["subasset_id"])              
+            #if $bpsa.supportsFunction("vap")
+                #set $mwports=$mwports + " " + $bport
+            #end if
+        #end for
+        #if len($mwports)>0
+$c    madwifi_ports $mwports
+        #end if
+    #end if
+    ## Deal with aliased interfaces
+    #for $alias in $iface.aliases
+$c    up /sbin/ip addr add $alias.ip_address/$alias.alias_netmask dev $iface.name
+$c    down /sbin/ip addr del $alias.ip_address/$alias.alias_netmask dev $iface.name
+    #end for
+
+#end for

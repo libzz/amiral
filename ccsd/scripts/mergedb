@@ -1,0 +1,481 @@
+#!/usr/bin/python2.4
+
+'''
+This script is designed specificly to take the a folder of databases from mrtg
+as the crcnet network has them and merge them with an rrdbot db tree.
+
+Note: Run this script in a temp folder as it will create subdirs with the results
+of the run
+
+'''
+
+import sys
+import os
+def ensureDirExists(dir):
+    """Ensures that the specified directory exists.
+
+    Obviously this will create parent directories too if need be.
+
+    Returns the number of directories that were created.
+    """
+    # If the path exists all is good
+    if os.path.exists(dir):
+        return 0
+
+    # Otherwise check if the parent path exists
+    head, tail = os.path.split(dir)
+    n = ensureDirExists(head)
+
+    # Now make the directory
+    os.mkdir(dir, 0750)
+    return 1 + n
+
+def removeconfig(dir, first=True):
+    try:
+        x=os.listdir(dir)
+        for file in x:
+            if os.path.isdir("%s/%s" % (dir,file)):
+                removeconfig("%s/%s" % (dir,file), False)
+            else:
+                os.remove("%s/%s" % (dir,file))
+        if not first:
+            os.rmdir(dir)
+    except OSError:
+        pass
+
+class dbase:
+    def init(self, file):
+        self.info = {}
+        self.ds = []
+        self.rra = []
+        self.fd = open(file, 'r')
+        line = self.fd.readline().strip('\n')
+
+        #Find the start of the rrd
+        #print "Finding start"
+        while line != "<rrd>":
+            line = self.fd.readline().strip('\n')
+        #Read in rrd info
+        #print "Read info"
+        line = self.fd.readline().strip('\n')
+        while line != "\t<ds>":
+            if line == "":
+                line = self.fd.readline().strip('\n')
+                continue
+            line = line.split("<")
+            line = line[1].split(">")
+            name = line[0]
+            line =  line[1].strip()
+            self.info[name] = line
+            #print "Found %s = %s" % (name, line)
+            line = self.fd.readline().strip('\n')
+
+        while line != "\t<rra>":
+            #find ds
+            while 1:
+                if line == "\t<ds>":
+                    ds = {}
+                    #Read in ds info
+                    #print "Read ds"
+                    line = self.fd.readline().strip('\n')
+                    while line != "\t</ds>":
+                        if line == "":
+                            line = self.fd.readline().strip('\n')
+                            continue
+                        line = line.split("<")
+                        if line[1][0] == '!':
+                            line = self.fd.readline().strip('\n')
+                            continue
+                        line = line[1].split(">")
+                        name = line[0]
+                        line =  line[1].strip()
+                        ds[name] = line
+                        #print "Found %s = %s" % (name, line)
+                        line = self.fd.readline().strip('\n')
+
+                    self.ds.append(ds)
+    
+                else:
+                    if line == "\t<rra>":
+                        break
+                    line = self.fd.readline().strip('\n')
+
+        while line != "</rrd>":
+            #find ds
+            while 1:
+                if line == "\t<rra>":
+                    rra = {}
+                    data = {}
+                    #Read in ds info
+                    #print "Read rra"
+                    line = self.fd.readline().strip('\n')
+                    while line != "\t</rra>":
+                        if line == "\t\t<cdp_prep>":
+                            while line != "\t\t</cdp_prep>":
+                                line = self.fd.readline().strip('\n')
+                            line = self.fd.readline().strip('\n')
+                            continue
+                        if line == "\t\t<database>":
+                            line = self.fd.readline().strip('\n')
+                            while line != "\t\t</database>":
+                                line = line.split("<v>")
+                                time = line[0]
+                                time = time.split("--")[1].strip()
+                                tvalues = line[1:]
+                                values = []
+                                for i in range(len(tvalues)):
+                                    value = tvalues[i].split("</v>")[0].strip()
+                                    values.append(value)
+                                    
+                                data[time] = values
+                                line = self.fd.readline().strip('\n')
+                            #print "Found database of size %s" % len(data)
+                            line = self.fd.readline().strip('\n')
+                            continue
+                            
+                        if line == "":
+                            line = self.fd.readline().strip('\n')
+                            continue
+                        line = line.split("<")
+                        if line[1][0] == '!':
+                            line = self.fd.readline().strip('\n')
+                            continue
+                        line = line[1].split(">")
+                        name = line[0]
+                        line =  line[1].strip()
+                        rra[name] = line
+                        #print "Found %s = %s" % (name, line)
+                        line = self.fd.readline().strip('\n')
+                    rra["database"] = data
+                    self.rra.append(rra)
+    
+                else:
+                    if line == "</rrd>":
+                        break
+                    line = self.fd.readline().strip('\n')            
+        self.fd.close()
+        return self
+
+    def merge(self, file, out, rmatch, mult=False, invert=False):
+        self.fd = open(file, 'r')
+        out = open(out, 'w')
+        line = self.fd.readline().strip('\n')
+        out.write("%s\n" % line)
+
+        #Find the start of the rrd
+        #print "Finding start"
+        while line != "<rrd>":
+            line = self.fd.readline().strip('\n')
+            out.write("%s\n" % line)
+        #Read in rrd info
+        #print "Read info"
+        line = self.fd.readline().strip('\n')
+        out.write("%s\n" % line)
+        while line != "\t<ds>":
+            if line == "":
+                line = self.fd.readline().strip('\n')
+                out.write("%s\n" % line)
+                continue
+            line = line.split("<")
+            line = line[1].split(">")
+            name = line[0]
+            line =  line[1].strip()
+            #self.info[name] = line
+            #print "Found %s = %s" % (name, line)
+            line = self.fd.readline().strip('\n')
+            out.write("%s\n" % line)
+
+        while line != "\t<rra>":
+            #find ds
+            while 1:
+                if line == "\t<ds>":
+                    ds = {}
+                    #Read in ds info
+                    #print "Read ds"
+                    line = self.fd.readline().strip('\n')
+                    out.write("%s\n" % line)
+                    while line != "\t</ds>":
+                        if line == "":
+                            line = self.fd.readline().strip('\n')
+                            out.write("%s\n" % line)
+                            continue
+                        line = line.split("<")
+                        if line[1][0] == '!':
+                            line = self.fd.readline().strip('\n')
+                            out.write("%s\n" % line)
+                            continue
+                        line = line[1].split(">")
+                        name = line[0]
+                        line =  line[1].strip()
+                        ds[name] = line
+                        #print "Found %s = %s" % (name, line)
+                        line = self.fd.readline().strip('\n')
+                        out.write("%s\n" % line)
+
+                    #self.ds.append(ds)
+    
+                else:
+                    if line == "\t<rra>":
+                        break
+                    line = self.fd.readline().strip('\n')
+                    out.write("%s\n" % line)
+
+        while line != "</rrd>":
+            #find ds
+            while 1:
+                if line == "\t<rra>":
+                    rra = {}
+                    data = {}
+                    #Read in ds info
+                    #print "Read rra"
+                    line = self.fd.readline().strip('\n')
+                    out.write("%s\n" % line)
+                    while line != "\t</rra>":
+                        if line == "\t\t<cdp_prep>":
+                            while line != "\t\t</cdp_prep>":
+                                line = self.fd.readline().strip('\n')
+                                out.write("%s\n" % line)
+                            line = self.fd.readline().strip('\n')
+                            out.write("%s\n" % line)
+                            continue
+                        if line == "\t\t<database>":
+                            r = self.matchrra(rra)        
+                            if r:       
+                                #print "Matched RRA"
+                                line = self.fd.readline().strip('\n')
+                                #out.write("%s\n" % line)
+                                while line != "\t\t</database>":
+                                    buff = line.split("<v>")
+                                    time = buff[0]
+                                    time = time.split("--")[1].strip()
+                                    tvalues = buff[1:]
+                                    values = []
+                                    for i in range(len(tvalues)):
+                                        value = tvalues[i].split("</v>")[0].strip()
+                                        if value == "NaN" and i in rmatch.keys():
+                                            if time in r.keys():
+                                                if r[time][rmatch[i]] != "NaN":
+                                                    #print "value to %s" % r[time][rmatch[i]]
+                                                    val = r[time][rmatch[i]]
+                                                    if invert:
+                                                        val = float(val)
+                                                        val *= -1
+                                                    if mult:
+                                                        val = float(val)
+                                                        if val < 500:
+                                                            val *= 1000
+                                                    values.append(val)
+                                                else:
+                                                    values.append(value)
+                                            else:
+                                                values.append(value)
+                                        else:
+                                            values.append(value)
+                                        
+                                    data[time] = values
+                                    out.write("\t\t\t<!-- %s --> <row>" % time)
+                                    for i in values:
+                                        out.write("<v> %s </v>" % i)
+                                    out.write("</row>\n")
+                                    #out.write("%s\n" % line)
+                                    line = self.fd.readline().strip('\n')
+                                out.write("%s\n" % line)
+                                #print "Found database of size %s" % len(data)
+                                line = self.fd.readline().strip('\n')
+                                out.write("%s\n" % line)
+                                continue
+                            
+                        if line == "":
+                            line = self.fd.readline().strip('\n')
+                            out.write("%s\n" % line)
+                            continue
+                        line = line.split("<")
+                        if line[1][0] == '!':
+                            line = self.fd.readline().strip('\n')
+                            out.write("%s\n" % line)
+                            continue
+                        line = line[1].split(">")
+                        name = line[0]
+                        line =  line[1].strip()
+                        rra[name] = line
+                        #print "Found %s = %s" % (name, line)
+
+                        line = self.fd.readline().strip('\n')
+                        out.write("%s\n" % line)
+                    rra["database"] = data
+                    #self.rra.append(rra)
+    
+                else:
+                    if line == "</rrd>":
+                        break
+                    line = self.fd.readline().strip('\n')            
+                    out.write("%s\n" % line)
+        self.fd.close()
+        
+    def matchrra(self, rra):    
+        for r in self.rra:
+            match = True
+            for i in r:
+                if i != "database":
+                    if r[i] != rra[i]:
+                        match = False
+            if match:
+                return r["database"]
+        return None
+def buildmergetree_xml(mergetree, mergetree_xml):
+    x=os.listdir(mergetree)
+    for file in x:
+        if os.path.isdir("%s/%s" % (mergetree, file)):
+            ensureDirExists("%s/%s" % (mergetree_xml, file))
+            buildmergetree_xml("%s/%s" % (mergetree, file), "%s/%s" % (mergetree_xml, file))
+        else:
+            sfile = file.split(".")
+            if sfile[len(sfile)-1] == "rrd":
+                print "\t%s/%s" % (mergetree, file)
+                fd = os.popen("rrdtool dump %s/%s" % (mergetree, file))
+                wd = open("%s/%s.xml" % (mergetree_xml, file), 'w')
+                wd.write(fd.read())
+
+def buildmerged(merged_xml, merged):
+    x=os.listdir(merged_xml)
+    for file in x:
+        if os.path.isdir("%s/%s" % (merged_xml, file)):
+            ensureDirExists("%s/%s" % (merged, file))
+            buildmerged("%s/%s" % (merged_xml, file), "%s/%s" % (merged, file))
+        else:
+            sfile = file.split(".")
+            if sfile[len(sfile)-1] == "xml":
+                print "\t%s/%s" % (merged_xml, file)
+                fd = os.popen("rrdtool restore %s/%s %s/%s" % (merged_xml, file, merged, file[:len(file)-4]))
+                #wd = open("%s/%s.xml" % (mergetree_xml, file), 'w')
+                #wd.write(fd.read())            
+work = os.getcwd()    
+if len(sys.argv) != 3:
+    print "Usage: mergedb <mrtg database dir> <rrdbot database dir>"
+    sys.exit(0)
+source = sys.argv[1]
+source_xml = "%s/source-xml" % work
+mergetree = sys.argv[2]
+mergetree_xml = "%s/mergetree-xml" % work
+merged_xml = "%s/merged-xml" % work
+merged = "%s/merged" % work
+
+#Ensure Dirs exist
+ensureDirExists(source_xml)
+ensureDirExists(mergetree_xml)
+ensureDirExists(merged_xml)
+ensureDirExists(merged)
+
+#Ensure dirs are empty
+removeconfig(source_xml)
+removeconfig(mergetree_xml)
+removeconfig(merged_xml)
+removeconfig(merged)
+
+#Convert all source rrds to xml
+print "Converting source to xml"
+x=os.listdir(source)  
+for file in x:
+    sfile = file.split(".")
+    if sfile[len(sfile)-1] == "rrd":
+        print "\t%s/%s" % (source, file)
+        fd = os.popen("rrdtool dump %s/%s" % (source, file))
+        wd = open("%s/%s.xml" % (source_xml, file), 'w')
+        wd.write(fd.read())
+
+#Convert the mergetree to xml
+print "Converting mergetree to xml"
+buildmergetree_xml(mergetree, mergetree_xml)
+
+#Go though the source xml matching and merging with the mergetree
+print "Merging"
+x=os.listdir(source_xml)  
+for file in x:
+    rmatch = None
+    disc = ""
+    type = ""
+    host = ""
+    peer = ""
+    mult = False
+    invert = False
+    sfile = file.split("-")
+    if len(sfile) == 2:
+        host = sfile[0]
+        peer = sfile[1].split(".")[0]
+        disc = "interface"
+        rmatch = {2:0, 5:1}
+    elif len(sfile) == 3:
+        type = sfile[2].split(".")[0]
+        host = sfile[0]
+        peer = sfile[1]
+        if type == "sig":
+            disc = "wireless"
+            invert = True
+            rmatch = {2:0, 3:1}
+        elif type == "av":
+            mult = True
+            disc = "solar"
+            peer = None
+            rmatch = {4:0, 5:1}
+        elif type == "bv":
+            mult = True
+            peer = None
+            disc = "solar"
+            rmatch = {2:0, 1:1}
+        elif type == "current":
+            mult = True
+            peer = None
+            disc = "solar"
+            rmatch = {0:0, 6:1}
+        elif type == "temp":
+            peer = None
+            disc = "solar"
+            rmatch = {7:0, 3:1}
+        elif type == "ap":
+            host = sfile[0]
+            peer = "ap"
+            disc = "interface"
+            rmatch = {2:0, 5:1}        
+    elif len(sfile) == 4 and sfile[2] == "ap":
+        type = sfile[3].split(".")[0]
+        host = sfile[0]
+        peer = "ap"
+        if type == "sig":
+            disc = "wireless"
+            invert = True
+            rmatch = {2:0, 3:1}
+    else:
+        print "Unknowen: %s" % file
+
+    if rmatch:
+        d = "%s/%s/%s" % (mergetree_xml, host, disc)
+        if peer:
+            d += "-%s" % peer
+        d += ".rrd.xml"
+        if os.path.exists(d):
+            print "\t%s/%s" % (source_xml, file)
+            ensureDirExists("%s/%s" % (merged_xml, host))
+            x = dbase()
+            x.init("%s/%s" % (source_xml, file))
+            d1 = "%s/%s/%s" % (mergetree_xml, host, disc)
+            d2 = "%s/%s/%s" % (merged_xml, host, disc)
+            if peer:
+                d1 += "-%s" % peer
+                d2 += "-%s" % peer
+            d1 += ".rrd.xml"
+            d2 += ".rrd.xml"
+            if os.path.exists(d2):
+                print "Copied back"
+                os.rename(d2,d1)
+            x.merge(d1, d2, rmatch, mult, invert)
+           
+
+#Convert the merged xml to rrd
+print "Converting mergetree to xml"
+buildmerged(merged_xml, merged)
+
+        #fd = os.popen("rrdtool dump %s/%s" % (source, file))
+        #wd = open("%s/%s.xml" % (source_xml, file), 'w')
+        #wd.write(fd.read())
+
+

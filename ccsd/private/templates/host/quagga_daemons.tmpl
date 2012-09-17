@@ -1,0 +1,40 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+This template creates the quagga daemon start configuration file
+*#
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $serviceName = "quagga"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+# This file tells the zebra package
+# which daemons to start.
+# Entries are in the format: <daemon>=(yes|no|priority)
+# where 'yes' is equivalent to infinitely low priority, and
+# lower numbers mean higher priority. 
+# Daemons are: bgpd zebra ospfd ospf6d ripd ripngd
+zebra=yes
+bgpd=no
+!! Enable OSPF if it is enabled on at least one interface
+!set %ospfd="no"
+!for %name,%iface in %interfaces.items()
+    !if %service.quagga.interfaces[%name].ospf_enabled
+        !set %ospfd="yes"
+        !break
+    !end if
+!end for
+ospfd=%ospfd
+ospf6d=no
+ripd=no
+ripngd=no

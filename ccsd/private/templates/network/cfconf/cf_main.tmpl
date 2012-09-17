@@ -1,0 +1,214 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+This template sets up basic functions used on each host
+*#
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "cf.main"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict with CFengine
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+######################################################
+#
+# cf.main -- for %domain 
+# $Date$
+#
+# This file contains generic definitions and setup
+# all the actual work is done elsewhere
+#
+# WARNING: Do not modify this file since it is automatically
+#          generated
+#
+######################################################
+
+##########
+#
+# BEGIN cf.main
+#
+##########
+
+control:
+
+    any::
+
+        # user who is allowed to execute a cfengine program
+        access  = ( root )
+
+        site            = ( crc )
+        domain          = ( %domain )
+        smtpserver      = ( %smtp_server )
+        sysadm          = ( %admin_email )
+
+        ChecksumUpdates = ( on )
+
+        timezone        = ( NZST )
+        IfElapsed       = ( 0 )
+
+        editfilesize = ( 2048000 )
+
+        # Where to get configs from
+        policyhost      = ( %server_name )
+        policyip        = ( %policy_ip )
+
+        # CFengine base directory
+        workdir         = ( /var/lib/cfengine2 )
+
+        # Location of configuration files
+        # We use same filesystem structure on policy server / hosts
+        master_cfinput  = ( /var/lib/cfengine2/inputs )
+
+        # Location of this hosts configuration
+        host_config = ( $(master_cfinput)/hosts/$(host) )
+        host_ssh_keys = ( $(master_cfinput)/sshkeys/$(host) )
+
+        # Location of host cfengine configuration
+        host_cfinput = ( $(master_cfinput)/cfconf )
+        
+        # Shared configuration information
+        shared_config = ( $(master_cfinput)/shared )
+
+        # Use dpkg for managing package installation
+        DefaultPkgMgr = ( dpkg )
+        DPKGInstallCommand = ( "/usr/bin/apt-get -y install \%s" )
+
+        AddInstallable = ( restart_cfengine )
+
+    any::
+        # Action sequence to use for all other cases
+        actionsequence = (
+            # Check the time zone is correct
+            checktimezone
+            # Check resolv.conf
+            resolve
+            # Ensure required packages are present
+            packages
+            # Copy files across
+            copy
+            # Setup required symlinks
+            links
+            # Edit text files
+            editfiles
+            # Execute shell commands
+            shellcommands
+            # Check file permissions
+            files
+            # Tidy up unwanted files
+            tidy
+            # Check for required processes
+            processes
+        )
+
+######################################################
+#
+# The entire network currently uses the same nameservers
+resolve:
+
+    any::
+        10.1.0.1
+        10.1.0.2
+
+######################################################
+#
+# Copy configuration files onto the host
+copy:
+
+    any::
+    
+        # CFengine configuration
+        $(shared_config)/cf_defaults dest=/etc/default/cfengine2 mode=0644
+            server=$(policyhost) type=sum owner=root group=root
+            define=restart_cfengine
+
+    !CPE::
+        # Host specific configuration revision
+        $(host_config)/ccs-revision dest=/var/lib/ccsd/ccs-revision mode=0644
+            server=$(policyhost) type=sum owner=root group=root
+
+        # SSH Keys
+        $(host_ssh_keys)/ssh_host_dsa_key dest=/etc/ssh/ssh_host_dsa_key
+            mode=600 server=$(policyhost) type=sum owner=root group=root
+            define=restart_ssh
+        $(host_ssh_keys)/ssh_host_rsa_key dest=/etc/ssh/ssh_host_rsa_key
+            mode=600 server=$(policyhost) type=sum owner=root group=root
+            define=restart_ssh
+        $(host_ssh_keys)/ssh_host_dsa_key.pub
+            dest=/etc/ssh/ssh_host_dsa_key.pub mode=600 server=$(policyhost)
+            type=sum owner=root group=root define=restart_ssh
+        $(host_ssh_keys)/ssh_host_rsa_key.pub
+            dest=/etc/ssh/ssh_host_rsa_key.pub mode=600 server=$(policyhost)
+            type=sum owner=root group=root define=restart_ssh
+
+######################################################
+#
+# Setup file permissions and check things have not
+# changed.
+files:
+
+    any::
+        # Basic Security Checks
+        /usr/bin mode=o-w checksum=md5 r=inf action=fixplain ifelapsed=60
+        /usr/sbin mode=o-w checksum=md5 r=inf action=fixplain ifelapsed=60
+        /usr/lib mode=o-w checksum=md5 r=inf action=fixplain ifelapsed=60
+        /sbin mode=o-w checksum=md5 r=inf action=fixplain ifelapsed=60
+        /bin mode=o-w checksum=md5 r=inf action=fixplain ifelapsed=60
+        /lib mode=o-w checksum=md5 r=inf action=fixplain ifelapsed=60
+
+        # Check host status directory exists
+        /var/lib/ccsd mode=0750 r=0 action=fixdirs inform=true syslog=true 
+            ifelapsed=60
+
+        # Check SSH key permissions
+        /etc/ssh/*key mode=0600 checksum=md5 r=0 action=fixplain
+            inform=true syslog=true ifelapsed=60
+        /etc/ssh*key.pub mode=0644 checksum=md5 r=0 action=fixplain
+            inform=true syslog=true ifelapsed=60
+
+        # Check a cfengine key exists for the cfengine user
+        /var/lib/cfengine2/ppkeys/cfengine-$(policyip).pub r=0 mode=0644
+            action=create inform=true define=setup_cfengine_user_key ifelapsed=60
+
+#######################################################
+#
+# Tidy up cruft
+tidy:
+
+    any::
+        /tmp pattern=* exclude=.* age=3 r=inf ifelapsed=60
+        /var/tmp pattern=* exclude=.* age=3 r=inf ifelapsed=60
+
+#######################################################
+#
+# Run any necessary shell commands
+shellcommands:
+
+    restart_cfengine::
+        "/etc/init.d/cfengine2 restart"
+
+    setup_cfengine_user_key::
+        "/bin/cp -a /var/lib/cfengine2/ppkeys/root-$(policyip).pub /var/lib/cfengine2/ppkeys/cfengine-$(policyip).pub"
+
+########################################################
+#
+# Always make sure cfservd is running
+processes:
+
+    any.!PXE_booting::
+        "cfservd" restart "/etc/init.d/cfengine2 start"
+
+########################################################
+
+##########
+#
+# END cf.main
+#
+##########

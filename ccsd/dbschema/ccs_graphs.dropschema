@@ -1,0 +1,21 @@
+-- 
+-- PostgreSQL drop schema for CRCnet Configuration Systems billing module
+--
+-- Author:  Chris Browning <ckb6@cs.waikato.ac.nz>
+--          Matt Brown  <matt@crc.net.nz>
+-- Version:  $Id$
+--
+
+DROP TABLE snmp_discovery CASCADE;
+DROP TABLE snmp_instructions CASCADE;
+DROP TABLE snmp_state CASCADE;
+DROP TABLE graph_group CASCADE;
+DROP TABLE graph_type CASCADE;
+DROP TABLE graph_parts CASCADE;
+DROP TABLE rrdbot_class CASCADE;
+DROP TABLE rrdbot_class_parts CASCADE;
+DROP TABLE graph_time CASCADE;
+DROP VIEW graphview CASCADE;
+DROP VIEW mirrortmp CASCADE;
+DROP VIEW mirrorview CASCADE;
+-- vim: ft=sql

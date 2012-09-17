@@ -1,0 +1,35 @@
+--
+-- Testing data for the billing schema
+--
+-- Author:  Matt Brown  <matt@crc.net.nz>
+-- Version:  $Id$
+--
+
+-- Radius Plans
+INSERT INTO radius_plan VALUES (DEFAULT, 'default', 64, 64);
+INSERT INTO radius_plan VALUES (DEFAULT, 'home', 256, 512);
+INSERT INTO radius_plan VALUES (DEFAULT, 'business', 256, 1024);
+INSERT INTO radius_plan VALUES (DEFAULT, 'power', 1024, 1024);
+
+-- Home Plans (512/256)
+INSERT INTO billing_plan VALUES (DEFAULT, 'home-throttle', 'Home Plan with ToC',
+    57.78, 2, 1024, 'weekly', 'throttle', 1, 0);
+INSERT INTO billing_plan VALUES (DEFAULT, 'home-purchase', 
+    'Home Plan with 1G/$10 pack purchase', 57.78, 2, 1024, 'weekly', 'purchase', 
+    1024, 8.89);
+
+-- Business Plans (1024/256)
+INSERT INTO billing_plan VALUES (DEFAULT, 'business-throttle', 
+    'Business Plan with ToC', 75.56, 3, 2048, 'weekly', 'throttle', 1, 0);
+INSERT INTO billing_plan VALUES (DEFAULT, 'business-purchase', 
+    'Business Plan with 1G/$10 pack purchase', 75.56, 3, 2048, 'weekly', 
+    'purchase', 1024, 8.89);
+
+-- Power Plans (1024/1024)
+INSERT INTO billing_plan VALUES (DEFAULT, 'power-throttle', 
+    'Power Plan with ToC', 88.89, 3, 4096, 'weekly', 'throttle', 1, 0);
+INSERT INTO billing_plan VALUES (DEFAULT, 'power-purchase', 
+    'Power Plan with 1G/$10 pack purchase', 88.89, 3, 4096, 'weekly', 
+    'purchase', 1024, 8.89);
+
+-- vim: ft=sql

@@ -1,0 +1,33 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+Default apt source list for CRCnet CPE Devices
+*#
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "sources.list"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+#############################################################
+#
+# sources.list -- for %domain 
+# $Date$
+#
+# This file contains the default apt sources for CRCnet CPE Devices
+#
+# WARNING: Do not modify this file since it is automatically
+#          generated
+#
+#############################################################
+
+deb http://packages.crc.net.nz/debian crcnet-bpc main private
+

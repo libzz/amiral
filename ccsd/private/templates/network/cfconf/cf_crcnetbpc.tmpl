@@ -1,0 +1,110 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+This template sets up configuration specific to the crcnet-bpc distribution
+*#
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "cf.crcnetbpc"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict with CFengine
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+################################################################
+#
+# cf.biscuitpcs -- for %domain
+# $Date$
+#
+# This file contains distribution specific setup for CRCnet
+# Biscuit PCs
+#
+# WARNING: Do not modify this file since it is automatically
+#          generated
+#
+################################################################
+
+###########
+#
+# BEGIN cf.biscuitpcs
+#
+###########
+
+control:
+
+    any::
+
+        # Directory containing crcnet-bpc specific configuration files
+        crcnetbpc_config = ( $(master_cfinput)/crcnet-bpc )
+        bpccommon_config = ( $(crcnetbpc_config) )
+
+        # Classes that may become defined as we proceed
+        AddInstallable = ( restart_networking )
+        AddInstallable = ( restart_init )
+
+import:
+    # Load common Biscuit PC configuration
+    any:: cf.bpccommon
+
+copy:
+
+    any::
+        
+        # Basic machine configuration
+        $(crcnetbpc_config)/group dest=/etc/group mode=0644
+            server=$(policyhost) type=sum owner=root group=root encrypt=true
+
+        $(crcnetbpc_config)/passwd dest=/etc/passwd mode=0644
+            server=$(policyhost) type=sum owner=root group=root encrypt=true
+
+        $(host_config)/hosts dest=/etc/hosts mode=0644
+            server=$(policyhost) type=sum owner=root group=root
+
+        $(host_config)/ssmtp.conf dest=/etc/ssmtp/ssmtp.conf mode=0644
+            server=$(policyhost) type=sum owner=root group=root
+        
+        # Networking configuration
+        $(host_config)/interface.rules
+            dest=/etc/udev/rules.d/interface.rules mode=0644
+            server=$(policyhost) type=sum owner=root group=root
+            define=refresh_ifnames
+
+        $(host_config)/interfaces dest=/etc/network/interfaces mode=0644
+            server=$(policyhost) type=sum owner=root group=root
+            define=restart_networking
+
+        # CRCnet Monitor
+        $(host_config)/crcnet_monitor.conf
+            dest=/etc/ccsd/crcnet-monitor.conf mode=644 server=$(policyhost)
+            type=sum owner=root group=root define=restart_crcnet_monitor
+
+        # Inittab
+        $(host_config)/inittab
+            dest=/etc/inittab mode=0644
+            server=$(policyhost) type=sum owner=root group=root
+            define=restart_init
+
+shellcommands:
+
+    any::
+
+    restart_init.!PXE_booting::
+        "/sbin/telinit q"
+        "/usr/bin/killall agetty"
+    
+    refresh_ifnames.!PXE_booting::
+        "/usr/bin/refresh_ifnames"
+
+###########
+#
+# END cf.biscuitpcs
+#
+###########
+

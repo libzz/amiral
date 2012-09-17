@@ -1,0 +1,49 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+This template creates the list of hosts that cfrun should execute
+*#
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "cfrun.hosts"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict with CFengine
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+###################################################################
+#
+# cfrun.hosts -- for %domain
+# $Date$
+#
+# This file contains all host names.
+#
+# WARNING: Do not modify this file. It is automatically generated
+#
+###################################################################
+
+###########
+#
+# BEGIN cfrun.hosts
+#
+###########
+
+domain = %domain
+outputdir = /var/lib/cfengine2/outputs
+maxchild = 30
+access = root,cfengine
+
+!for %host_name,%host in %hosts.items()
+!if %host.host_active
+%host.host_name
+!else
+#%host.host_name is disabled
+!end if
+!end for

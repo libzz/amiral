@@ -1,0 +1,52 @@
+ccsd-private (r586-1) crcnet-bpc; urgency=low
+
+  * New upstream revision
+    - CRCnet Monitor now supports IE 
+    - Added AJAX interface status updates to CRCnet monitor
+    - Depends on python-iwtools newer than r44
+
+ -- Matt Brown <matt@crc.net.nz>  Thu,  9 Mar 2006 16:11:09 +1300
+
+ccsd-private (r565-1) crcnet; urgency=low
+
+  * New upstream revision
+    - Update OSPF template to set default-information originate
+
+ -- Matt Brown <matt@crc.net.nz>  Mon,  6 Mar 2006 11:58:52 +1300
+
+ccsd-private (r548-1) crcnet; urgency=low
+
+  * New upstream revision
+    - Includes new CRCnet Monitor modules
+  * Added CRCnet-modules packaging stuff
+
+ -- Matt Brown <matt@crc.net.nz>  Fri,  3 Mar 2006 13:21:26 +1300
+
+ccsd-private (r540-1) crcnet; urgency=low
+
+  * New upstream revision 
+
+ -- Matt Brown <matt@crc.net.nz>  Wed,  1 Mar 2006 12:17:37 +1300
+
+ccsd-private (r537-1) crcnet; urgency=low
+
+  * New upstream revision
+    - Includes schemas for services 
+    - Fixes minor bug in DHCP initialisation routine
+  * Improve maintainer scripts to only run on configure/remove events
+
+ -- Matt Brown <matt@crc.net.nz>  Tue, 28 Feb 2006 12:49:38 +1300
+
+ccsd-private (r533-2) crcnet; urgency=low
+
+  * Restart rather than start in the postinst scripts.
+  * Restart upon remove as well 
+
+ -- Matt Brown <matt@crc.net.nz>  Tue, 28 Feb 2006 12:08:15 +1300
+
+ccsd-private (r533-1) crcnet; urgency=low
+
+  * Initial release
+
+ -- Matt Brown <matt@crc.net.nz>  Tue, 28 Feb 2006 11:24:41 +1300
+

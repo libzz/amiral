@@ -1,0 +1,158 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+This template sets up configuration specific to CPE devices
+*#
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "cf.cpe"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict with CFengine
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+################################################################
+#
+# cf.cpe -- for %domain
+# $Date$
+#
+# This file contains distribution specific setup for CRCnet
+# CPE devices
+#
+# WARNING: Do not modify this file since it is automatically
+#          generated
+#
+################################################################
+
+###########
+#
+# BEGIN cf.cpe
+#
+###########
+
+control:
+
+    any::
+
+        # Directory containing crcnet-cpe specific configuration files
+        crcnetcpe_config = ( $(master_cfinput)/crcnet-cpe )
+        bpccommon_config = ( $(crcnetcpe_config) )
+
+        # Classes that may become defined as we proceed
+        AddInstallable  = ( restart_networking GeodeKernel )
+        AddInstallable  = ( HasMadwifiElan HasMadwifiGeode )
+        AddInstallable  = ( HasInternalNetConfig HasInternalDHCPConfig )
+
+        # Running kernel version
+        kver  = ( ExecShellResult(/bin/uname -r | cut -f -2 -d-) )
+
+groups:
+
+    any::
+
+        # Kernel classes
+        GeodeKernel     = ( ReturnsZero(/bin/grep -q "Geode" /proc/cpuinfo) )
+
+        # Madwifi Modules - cannot use packages action to detect this as we 
+        # need to substitute the running kernel version / flavour into the name
+        HasMadwifiElan    = ( FileExists("/lib/modules/$(kver)-elan/net/ath_pci.ko") )
+        HasMadwifiGeode   = ( FileExists("/lib/modules/$(kver)-geode/net/ath_pci.ko") )
+
+        # Has internal network configuration
+        HasInternalNetConfig = ( ReturnsZero("/bin/grep -q $(quote)^iface int$(quote) /etc/network/interfaces") )
+
+        # Has internal DHCP configuration
+        HasInternalDHCPConfig = ( ReturnsZero("/bin/grep -q $(quote)^# Internal$(quote) /etc/dhcp3/dhcpd.conf") )
+
+import:
+    any:: 
+        # Load common Biscuit PC configuration
+        cf.bpccommon
+        # Firewall configuration
+        cf.firewall
+
+links:
+
+    # Setup CPE firewall configuration based on the interface name
+    any::
+        # Loopback interface
+        /etc/firewall/interfaces.d/lo.if ->! ../classes.d/loopback 
+            define=restart_firewall
+        # Internal interface
+        /etc/firewall/interfaces.d/int.if ->! ../classes.d/internal
+            define=restart_firewall
+        # CPE Backhaul interface
+        /etc/firewall/interfaces.d/bhaul.if ->! ../classes.d/cpe_bhaul
+            define=restart_firewall
+
+files:
+    any::
+        # Check run directory
+        /var/run/dhcp3 r=0 mode=0755 action=fixdirs ifelapsed=60
+        # Check configuration permissions
+        /etc/dhcp3/* mode=0640 owner=root group=root r=0 action=fixplain
+            inform=true syslog=true ifelapsed=60
+        /etc/default/dhcp3-server mode=0640 owner=root group=root r=0
+            action=fixplain inform=true syslog=true ifelapsed=60
+
+packages:
+
+    any::
+        # Madwifi tools
+        madwifi-ng-tools  pkgmgr=dpkg action=install ifelapsed=120
+        # DHCP
+        dhcp3-server pkgmgr=dpkg action=install ifelapsed=120
+        # WPA Supplicant
+        wpasupplicant pkgmgr=dpkg action=install ifelapsed=120
+
+copy:
+
+    any::
+        
+        # CRCnet Monitor
+        $(crcnetcpe_config)/crcnet_monitor.conf
+            dest=/etc/ccsd/crcnet-monitor.conf mode=644 server=$(policyhost)
+            type=sum owner=root group=root define=restart_crcnet_monitor
+
+        # DHCP Defaults
+        $(crcnetcpe_config)/dhcpd_default dest=/etc/default/dhcp3-server
+            mode=0640 server=$(policyhost) type=sum owner=root group=root
+
+    # Network Configuration - only copied once, crcnet-monitor maintains 
+    # the config once we have put the template in place
+    !HasInternalNetConfig::
+        $(crcnetcpe_config)/interfaces dest=/etc/network/interfaces mode=0640
+            server=$(policyhost) type=sum owner=root group=root 
+            define=restart_crcnet_monitor
+
+    # DHCP Configuration - only copied once, crcnet-monitor maintains 
+    # the config once we have put the template in place
+    !HasInternalDHCPConfig::
+        $(crcnetcpe_config)/dhcpd.conf dest=/etc/dhcp3/dhcpd.conf mode=0640
+            server=$(policyhost) type=sum owner=root group=root 
+            define=restart_crcnet_monitor
+
+shellcommands:
+
+    any::
+
+    # Install madwifi modules if they were not detected
+    GeodeKernel.!HasMadwifiGeode::
+        "/usr/bin/apt-get install madwifi-ng-modules-$(kver)-geode"
+    !GeodeKernel.!HasMadwifiElan::
+        "/usr/bin/apt-get install madwifi-ng-modules-$(kver)-elan"
+
+editfiles:
+
+###########
+#
+# END cf.cpe
+#
+###########

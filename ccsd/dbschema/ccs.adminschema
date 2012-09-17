@@ -1,0 +1,13 @@
+-- 
+-- PostgreSQL administration commands required to create a database for use 
+-- with the CRCnet Configuration System Daemon 
+--
+-- Author:   Matt Brown  <matt@crc.net.nz>
+-- Version:  $Id$
+--
+-- This file is a part of crcnetd, licensed under the GPLv2
+
+CREATE FUNCTION "plpgsql_call_handler" () RETURNS opaque AS '$libdir/plpgsql', 'plpgsql_call_handler' LANGUAGE 'C';
+CREATE TRUSTED PROCEDURAL LANGUAGE 'plpgsql' HANDLER "plpgsql_call_handler" LANCOMPILER '';
+CREATE FUNCTION "plpythonu_call_handler" () RETURNS opaque AS '$libdir/plpython', 'plpython_call_handler' LANGUAGE 'C';
+CREATE TRUSTED PROCEDURAL LANGUAGE 'plpythonu' HANDLER "plpythonu_call_handler" LANCOMPILER '';

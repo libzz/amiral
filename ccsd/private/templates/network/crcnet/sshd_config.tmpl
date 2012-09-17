@@ -1,0 +1,64 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+Default SSHD configuration for CRCnet Hosts
+*#
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+#############################################################
+#
+# sshd_config -- for %domain 
+# $Date$
+#
+# This file contains the default SSHD configuration for CRCnet
+# Distribution Hosts (eg. Hosts running Debian Sarge with just
+# a few CRCnet specific packages)
+#
+# These machines are typically servers, so less configuration is
+# performed than we usually would with a biscuit PC.
+#
+# WARNING: Do not modify this file since it is automatically
+#          generated
+#
+#############################################################
+
+# What ports, IPs and protocols we listen for
+Port 22
+Protocol 2
+UsePrivilegeSeparation yes
+UsePAM yes
+KeyRegenerationInterval 3600
+ServerKeyBits 768
+
+# Logging
+SyslogFacility AUTH
+LogLevel INFO
+
+# Authentication:
+PermitRootLogin yes
+StrictModes yes
+RSAAuthentication no
+IgnoreRhosts yes
+RhostsRSAAuthentication no
+HostbasedAuthentication no
+PubkeyAuthentication yes
+PermitEmptyPasswords no
+PasswordAuthentication no
+ChallengeResponseAuthentication no
+
+X11Forwarding yes
+X11DisplayOffset 10
+KeepAlive yes
+
+Subsystem       sftp    /usr/lib/sftp-server

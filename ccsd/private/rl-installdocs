@@ -1,0 +1,80 @@
+============================================================================
+Rural Link PXE Documentation
+Author:     Matt Brown <matt@crc.net.nz>
+Version:    $Id$
+============================================================================
+
+To Get to the RuralLink PXE Menu
+================================
+1)  Attach BPC to puck PXE boot network
+2)  Attach serial cable to BPC console
+3)  power up bpc
+4)  Login to puck, Run minicom
+5a) Soekris
+     - Ensure Minicom is set to 19200n8 (see instructions below)
+     - At the BPC Boot Menu Press Ctrl-P
+     - type 'boot f0' (no quotes)
+5b) WRAP 
+     - Ensure Minicom is set to 38400n8 (see instructions below)
+`    - Press 's' during the memory count to enter setup
+     - Press 'e' to enable Etherboot
+     - Press 'q' to quit, hit 'y' to save
+     - (if you know this WRAP has been pxebooted before you can skip the
+        previous three steps)
+     - Wait for the boot option menu, press n
+     - Dunno yet. to come
+6)  Wait for the pxelinux boot: prompt
+7)  type 'rurallink' (no quotes)
+8)  Wait (linux will load, takes approx 60seconds)
+9)  RuralLink PXE environment will load
+10) Press 'Enter' and you will be taken 
+    to the menu.
+    If you don't press 'Enter' within
+    10 seconds, the BPC will automatically
+    be installed as a RuralLink client.
+
+To Install a new RuralLink Client
+=================================
+1) Get to the RuralLink PXE Menu
+2) Don't push any buttons and the install will happen automatically
+3) Wait (approx 3 minutes)
+4) Done
+
+Installation can occasionally fail, just retry once or twice. If an 
+install fails more than twice consecutively something is wrong.
+
+To Install a new RuralLink Master
+=================================
+1) Follow instructions for creating a client
+2) Once you return to the menu, choose option 2
+3) Wait
+4) Done
+
+To Set Minicom Serial Port Speed
+================================
+1) Run minicom 
+2) Press Ctrl-a then o
+3) Scroll to serial port setup, press enter
+4) Press  e
+5) Press f (19200) for soekris, or press g (38400) for wrap
+6) Press enter twice
+7) Scroll to exit, press enter
+
+To Create a New flash card image
+================================
+
+1) Get to the RuralLink PXE Menu
+2) Choose Option 5
+3) Wait (up to 10 minutes)
+4) Verify image has everything that you want in it
+5) Choose Option 4, enter image name
+6) Wait
+7) Done
+
+To Make a new flash card image the default
+==========================================
+1) Edit /exports/rurallink/store/images/rlversion
+2) Replace current contents with the name chosen in step 5 above
+3) Save
+4) Done
+

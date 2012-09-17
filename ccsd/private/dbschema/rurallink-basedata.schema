@@ -1,0 +1,67 @@
+-- 
+-- PostgreSQL schema for RuralLink configuration system instance
+--
+-- Author:   Matt Brown  <matt@crc.net.nz>
+-- Version:  $Id$
+--
+BEGIN;
+SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+INSERT INTO changeset VALUES (DEFAULT, NOW(), 'admin', 'Initialising RuralLink data',
+    NULL, 't');
+
+INSERT INTO site VALUES (DEFAULT, 0, 0, 0, 'Stock (RSC)', 1, 1, '');
+INSERT INTO asset_stock_location VALUES (DEFAULT, currval('site_site_id_seq'), 
+    't');
+INSERT INTO site VALUES (DEFAULT, 0, 0, 0, 'Stock (Innovation Waikato)', 1, 1, 
+    '');
+INSERT INTO asset_stock_location VALUES (DEFAULT, currval('site_site_id_seq'), 
+    'f');
+
+INSERT INTO asset_type VALUES (DEFAULT, 'Soekris net4521');
+\set soekris_at_no currval('asset_type_asset_type_id_seq')
+INSERT INTO asset_type VALUES (DEFAULT, 'WRAP 2D');
+\set wrap_at_no currval('asset_type_asset_type_id_seq')
+INSERT INTO asset_type VALUES (DEFAULT, 'Athereos 802.11abg miniPCI Card');
+\set ath_at_no currval('asset_type_asset_type_id_seq')
+
+INSERT INTO asset_type_map VALUES ('host', :soekris_at_no);
+INSERT INTO asset_type_map VALUES ('host', :wrap_at_no);
+INSERT INTO asset_type_map VALUES ('interface', :ath_at_no);
+
+INSERT INTO subasset_type VALUES (DEFAULT, 'Ethernet Interface');
+INSERT INTO subasset_type_map VALUES ('interface',
+    currval('subasset_type_subasset_type_id_seq'));
+INSERT INTO subasset_type VALUES (DEFAULT, 'Wireless Interface');
+INSERT INTO subasset_type_map VALUES ('interface',
+    currval('subasset_type_subasset_type_id_seq'));
+INSERT INTO subasset_type_map VALUES ('wireless_interface',
+    currval('subasset_type_subasset_type_id_seq'));
+INSERT INTO subasset_type VALUES (DEFAULT, 'Wireless Interface (VAP Capable)');
+INSERT INTO subasset_type_map VALUES ('interface',
+    currval('subasset_type_subasset_type_id_seq'));
+INSERT INTO subasset_type_map VALUES ('wireless_interface',
+    currval('subasset_type_subasset_type_id_seq'));
+INSERT INTO subasset_type_map VALUES ('vap',
+    currval('subasset_type_subasset_type_id_seq'));
+INSERT INTO subasset_type VALUES (DEFAULT, 'Motherboard');
+
+INSERT INTO asset_type_subasset VALUES (DEFAULT, 1, 1, 'eth0', true);
+INSERT INTO asset_type_subasset VALUES (DEFAULT, 1, 4, 'Soekris net4526', true);
+
+INSERT INTO asset_type_subasset VALUES (DEFAULT, 2, 1, 'eth0', true);
+INSERT INTO asset_type_subasset VALUES (DEFAULT, 2, 4, 'WRAP 2D', true);
+
+INSERT INTO asset_type_subasset VALUES (DEFAULT, 3, 2, 'wireless', true);
+
+INSERT INTO asset_property VALUES (DEFAULT, 'MAC Address');
+INSERT INTO asset_property VALUES (DEFAULT, 'Compact Flash Card (MB)');
+INSERT INTO asset_property VALUES (DEFAULT, 'RAM (MB)');
+
+INSERT INTO subasset_property VALUES (DEFAULT, 1, 1, 't', NULL);
+INSERT INTO subasset_property VALUES (DEFAULT, 2, 1, 't', NULL);
+INSERT INTO subasset_property VALUES (DEFAULT, 3, 1, 't', NULL);
+INSERT INTO subasset_property VALUES (DEFAULT, 4, 2, 't', '64');
+INSERT INTO subasset_property VALUES (DEFAULT, 4, 3, 't', '64');
+
+UPDATE changeset SET pending='f' WHERE pending='t' AND username='admin';
+COMMIT;

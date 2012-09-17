@@ -1,0 +1,260 @@
+-- 
+-- PostgreSQL create schema for CRCnet Configuration Systems billing module
+--
+-- All prices in these tables should be sales tax exclusive
+--
+-- Author:  Ivan Meredith <ijm1@cs.waikato.ac.nz>
+--          Matt Brown  <matt@crc.net.nz>
+-- Version:  $Id$
+--
+
+begin transaction;
+-- List of plans that are dealt with via RADIUS
+CREATE TABLE radius_plan (
+    plan_id         SERIAL          PRIMARY KEY,
+    -- machine readable name for the plan ascii only, no spaces
+    plan_name       varchar(40)     NOT NULL,
+    -- Upstream (away from customer) rate
+    upstream_kbps   integer         NOT NULL,
+    -- Downstream (towards customer) rate
+    downstream_kbps integer         NOT NULL
+);
+
+-- Billing Plans that customers can be placed on
+CREATE TABLE billing_plan (
+    plan_id         SERIAL          PRIMARY KEY,
+    plan_name       varchar(40)     NOT NULL,
+    description     varchar(255)    NOT NULL,
+    -- The monthly cost of the plan
+    price           real            NOT NULL,
+    -- The RADIUS plan that the user of the plan is initially placed on
+    radius_plan     integer         NOT NULL REFERENCES radius_plan (plan_id)
+                                                ON DELETE RESTRICT,
+    -- The number of MB the user can transfer before they reach the 'cap', 
+    -- NULL for uncapped
+    included_mb     integer,
+    -- What time period the cap operates on (daily, weekly, monthly)
+    cap_period      varchar(20)     NOT NULL DEFAULT 'monthly',
+    -- What to do when the 'cap' is reached, one of (throttle, purchase)
+    cap_action      varchar(20)     NOT NULL DEFAULT 'throttle',
+    -- Additional information for the cap 
+    -- If cap_action is throttle, this is the ID of the RADIUS plan to 
+    -- place the user onto when the cap is reached
+    -- If cap_action is purchase, this is the number of mb to add to the 
+    -- cap_at_mb parameter in the state table
+    cap_param       integer,
+    -- The cost of taking the cap action
+    cap_price       real 
+);
+
+-- Discounts that can be applied to a customers account each month
+CREATE TABLE billing_discount (
+    discount_id     SERIAL          PRIMARY KEY,
+    discount_name   varchar(40)     NOT NULL,
+    description     varchar(255)    NOT NULL,
+    -- The amount of the discount, must be a positive integer
+    amount          real            NOT NULL
+);
+--The customers table contains customers("People who pay us money").
+CREATE TABLE customers (
+ customer_id                 SERIAL          PRIMARY KEY,
+ login_id                   integer         NOT NULL UNIQUE REFERENCES
+     logins (login_id)    ON DELETE CASCADE,
+ givenname                  varchar(50)     NOT NULL,
+ surname                    varchar(50)     NOT NULL,
+ phone                      varchar(20),
+ email                      varchar(50),
+ address                    varchar(100),  
+ -- Who to make the invoice out to
+ billing_name    varchar(50)     NOT NULL,
+ -- The address to send the invoice to
+ billing_address varchar(200)    NOT NULL,
+ -- The customers current account balance in cents
+ account_balance integer            DEFAULT 0,
+ -- Join date of the customer, used for working out when data history starts
+ join_date       timestamp with time zone DEFAULT current_timestamp
+);
+CREATE TABLE customers_history (
+ customer_id                integer         NOT NULL,
+ login_id                   integer,
+ givenname                  varchar(50),
+ surname                    varchar(50),
+ phone                      varchar(20),
+ email                      varchar(50),
+ address                    varchar(100),  
+ billing_name               varchar(50),
+ billing_address            varchar(200),
+ account_balance            integer,
+ join_date       timestamp with time zone,
+ changeset                 integer NOT NULL REFERENCES changeset (changeset_id),
+ PRIMARY KEY (customer_id, changeset)
+);
+CREATE TRIGGER customers_history_t BEFORE INSERT OR UPDATE OR DELETE ON 
+    customers FOR EACH ROW EXECUTE PROCEDURE do_table_history();
+
+-- Details of the discounts that apply to individual customers
+CREATE TABLE customer_discount (
+    customer_discount_id SERIAL   PRIMARY KEY,
+    customer_id      integer         NOT NULL REFERENCES customers (customer_id)
+                                                ON DELETE CASCADE,
+    discount_id     integer         NOT NULL REFERENCES billing_discount
+                                        (discount_id) ON DELETE CASCADE,
+    -- The first date this discount should be applied to the customers account
+    start_date      timestamp with time zone NOT NULL,
+    -- True if the discount should be applied for every subsequent month
+    recurring       boolean         NOT NULL,
+    -- Followed by an optional (inclusive) end date after which the discount
+    -- Will no longer be applied to the customers account
+    end_date        timestamp with time zone
+);
+	
+
+--The broadband account table keeps track of infomation about an account.
+--customers can have multiple accounts.
+CREATE TABLE broadband_account (
+ account_id                 SERIAL          PRIMARY KEY,
+ login_id      integer         NOT NULL UNIQUE REFERENCES logins (login_id)
+                                             ON DELETE CASCADE,
+ -- The plan the customer is currently active on
+ plan_id         integer         NOT NULL REFERENCES billing_plan (plan_id)
+                                             ON DELETE RESTRICT,
+ -- The date that this entry was last reset back to plan defaults 
+ plan_start      timestamp with time zone NOT NULL,
+ -- The current cap limit, may be greater than the plans included_mb if 
+ -- extra MBs have been purchased
+ cap_at_mb       integer         NOT NULL,        
+ -- The number of MB used since the last reset of this entry
+ used_mb         integer         NOT NULL DEFAULT 0,
+ -- The last time the used_mb counter was updated
+ last_updated    timestamp with time zone NOT NULL,
+ -- When this plan was made active(installed)
+ activated    timestamp with time zone DEFAULT now(),
+ -- The RADIUS plan that is currently active for this user
+ radius_plan     integer         NOT NULL REFERENCES radius_plan (plan_id)
+                                             ON DELETE RESTRICT,
+ -- Whether the customer has been informed of hitting 80% of thier cap
+ warning_sent    boolean         NOT NULL DEFAULT false,
+ connection_method varchar(64)   NOT NULL,
+ charged		boolean			 NOT NULL DEFAULT true
+);
+
+--A broadband account can have multiple access_methods(ethernet and wireless
+--currently). (This needs more looking into yet)
+CREATE TABLE access_methods (
+ account_id      integer         NOT NULL REFERENCES broadband_account (account_id)
+                                             ON DELETE CASCADE,
+ -- Connection Method (Wireless, Ethernet)
+ connection_method varchar(64)   NOT NULL
+);
+-- Mapping of ethernet connected customers to an interface
+CREATE TABLE customer_interface (
+    customer_id      integer         NOT NULL REFERENCES customers (customer_id)
+                                                ON DELETE CASCADE,
+    interface_id    integer         NOT NULL
+            REFERENCES interface (interface_id) ON DELETE CASCADE
+);
+--An email domain is owned by a customer
+CREATE TABLE email_domain (
+ customer_id      integer         NOT NULL REFERENCES customers (customer_id)
+                                             ON DELETE RESTRICT,
+ --name of the domain
+ domain                        varchar(50)     NOT NULL UNIQUE,
+ --If no suitable mailbox is found forward mail to this address
+ catchall                      varchar(50),
+ --If not NULL then redirect email to this address
+ redirect                      varchar(50)
+);
+
+--If a email_account is present for a login_id then an mailbox will be created
+--for that login. For an alias a login for the alias is created and fwdto is
+--used to redirect the mail.
+CREATE TABLE email_account (
+ login_id      integer         NOT NULL UNIQUE REFERENCES logins (login_id)
+                                             ON DELETE CASCADE,
+ customer_id      integer         NOT NULL REFERENCES customers (customer_id)
+                                             ON DELETE CASCADE,
+ --if not NULL then forward mail to this address
+ fwdto                          varchar(50),
+ --Quota in Mb
+ quota                          Integer
+);
+-- Billing records for the customer
+CREATE TABLE billing_record (
+    customer_id      integer         NOT NULL REFERENCES customers (customer_id)
+                                                ON DELETE CASCADE,
+    -- The invoice that this record was billed on, NULL if not yet billed
+    invoice_id      integer,
+    -- The date this record was added
+    record_date     timestamp with time zone,
+    -- Description of the charge
+    description     varchar(255)    NOT NULL,
+    -- The per unit amount of the  charge (negative for refunds)
+    amount          real            NOT NULL,
+    -- The quantity to charge. Eg. final cost for record is amount * quantity
+    quantity        real            NOT NULL,
+    -- The type of record (Discount, Data, Plan)
+    record_type            varchar(8)      NOT NULL
+);   
+CREATE TABLE plan_allowed_domains (
+    plan_id      integer         NOT NULL REFERENCES billing_plan (plan_id)
+                                                ON DELETE CASCADE,
+    domain       varchar(50)     NOT NULL REFERENCES email_domain (domain)
+                                                ON DELETE CASCADE
+);
+-- Sequence to assist in generating invoice IDs
+CREATE SEQUENCE billing_invoice_id_seq MINVALUE 100000 START 100000 NO CYCLE;
+
+-- List of billing records that have not yet been invoived
+CREATE VIEW non_invoiced_billing_records AS SELECT
+	* FROM billing_record WHERE invoice_id IS NULL;
+
+-- List of customers along with their additional information
+CREATE VIEW v_customers AS SELECT c.*,bp.plan_name, ba.connection_method,
+    l.username, l.domain, l.enabled, l.lastlog, l.passwd,
+    s.ip_address AS static_ip FROM customers c JOIN logins l ON 
+    l.login_id = c.login_id LEFT JOIN static_pool s ON 
+    l.login_id = s.login_id, broadband_account ba, billing_plan bp
+    WHERE bp.plan_id = ba.plan_id AND ba.login_id = c.login_id;
+
+	
+-- List of plans overviews, including rate data.
+CREATE VIEW plans AS SELECT p.*, r.plan_name AS rad_plan_name,r.upstream_kbps,
+	r.downstream_kbps FROM billing_plan p, radius_plan r WHERE r.plan_id=p.radius_plan;
+
+-- Gets information needed for rollover. use with "WHERE cap_period='weekly'
+-- to get rollovers that are done weekly. Resticts to accounts that are both
+-- enabled and activated
+CREATE VIEW rollover AS SELECT a.plan_name, a.description, a.price, 
+    a.included_mb, a.cap_period, a.radius_plan, b.login_id, b.charged FROM billing_plan a 
+    JOIN broadband_account b USING(plan_id) JOIN logins l USING(login_id) 
+    WHERE enabled = 1 AND activated IS NOT NULL;
+
+
+-- Create a view to retrieve more information about a customer and interface
+CREATE VIEW customer_interfaces AS SELECT 
+    c.login_id, c.customer_id, c.username, c.domain, h.host_name, h.host_id, i2.name AS interface_name,
+    replace(m.mac,':','-') AS interface_mac, i.ip_address FROM v_customers c, 
+    customer_interface ci, interface i, interface i2, host h, asset_macs m 
+    WHERE c.customer_id=ci.customer_id AND ci.interface_id=i.interface_id AND 
+    i.raw_interface=i2.interface_id AND i2.host_id=h.host_id AND 
+    i2.subasset_id=m.subasset_id AND c.connection_method!='Wireless';
+
+CREATE VIEW discount_view as SELECT b.discount_name, b.amount,
+    c.* FROM customer_discount c join  billing_discount b ON 
+    b.discount_id = c.discount_id;  
+CREATE VIEW v_domains AS SELECT d.*, l.username || '@' || l.domain AS owner, 
+    l.login_id FROM email_domain d, logins l, customers c where 
+    l.login_id = c.login_id AND c.customer_id=d.customer_id ORDER BY domain;
+CREATE VIEW v_mailboxes AS SELECT e.*, l1.username, l1.domain, l1.username 
+    || '@' || l1.domain AS email, l2.username || '@' || l2.domain AS owner,
+    l2.login_id AS owner_login_id FROM email_account e, logins l1, logins l2,
+    customers c where l2.login_id = c.login_id AND c.customer_id=e.customer_id
+    AND l1.login_id=e.login_id ORDER BY domain, username;
+CREATE VIEW v_email_account AS
+    SELECT (((logins.username)::text || '@'::text) || (logins."domain")::text)
+    AS address, logins.username, logins."domain", logins.passwd, email_account.fwdto,
+    email_account.quota FROM (email_account JOIN logins ON 
+    ((email_account.login_id = logins.login_id)));
+    
+commit;
+-- vim: ft=sql

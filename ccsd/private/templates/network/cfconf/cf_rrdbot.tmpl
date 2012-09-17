@@ -1,0 +1,66 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+This template sets up the rrdbot cfengine rules on each host
+*#
+#attr $author = "Chris Browning <chris.ckb@gmail.com>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "cf.rrdbot"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict with CFengine
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+!set %rrdbot = %services["rrdbot"]
+################################################################
+#
+# cf.rrdbot -- for crc.net.nz
+#
+# This file contains configuration information for the rrdbot system.
+#
+# WARNING: Do not modify this file since it is automatically
+#          generated
+#
+################################################################
+
+control:
+
+    any::
+        # Source File Locations
+        rrdbot_cfinput = ( $(master_cfinput)/services/rrdbot )
+        
+        # Classes that may be defined as we proceed
+        AddInstallable = ( restart_rrdbot )
+        
+        # Restart rrdbot if any of these files are updated
+        restart_rrdbot::
+            autodefine = ( /etc/rrdbot/rrdbot.conf )
+            autodefine = ( /etc/rrdbot/*pem )
+
+packages:
+
+    any::
+        rrdbot pkgmgr=dpkg action=install ifelapsed=120
+    
+copy:
+
+    any::
+        $(host_config)/rrdbot/rrdbot.conf  dest=/etc/rrdbot/rrdbot.conf mode=0644 
+            server=$(policyhost) type=sum owner=root group=root
+        $(rrdbot_cfinput)/certs/cert.pem dest=/etc/rrdbot/cert.pem mode=0644
+            server=$(policyhost) type=sum owner=root group=root encrypt=true
+        $(rrdbot_cfinput)/certs/key.pem dest=/etc/rrdbot/key.pem mode=0644
+            server=$(policyhost) type=sum owner=root group=root encrypt=true
+
+shellcommands:
+		
+    restart_rrdbot::
+        "/etc/init.d/rrdbot stop"
+        "/etc/init.d/rrdbot start"

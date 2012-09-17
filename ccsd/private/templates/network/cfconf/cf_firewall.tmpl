@@ -1,0 +1,96 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+This template generates the CFengine configuration to manage the firewall
+*#
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "cf.firewall"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict with CFengine
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+!set %firewall = %services["firewall"]
+#############################################################
+#
+# cf.firewall -- for %domain 
+# $Date$
+#
+# This file contains the firewall configuration to copy classes
+# onto the computer.
+#
+# Linking these classes to a specific interface happens elsewhere
+#
+# WARNING: Do not modify this file since it is automatically
+#          generated
+#
+#############################################################
+
+###########
+#
+# BEGIN cf.firewall
+#
+###########
+
+control:
+
+    any::
+
+        # Classes that may become defined as we proceed
+        AddInstallable = ( restart_firewall )
+        
+    restart_firewall::
+        autodefine = ( /etc/firewall/classes.d/* )
+        autodefine = ( /etc/firewall/interfaces.d/* )
+    
+import:
+
+    # Import host specific rules on non-CPE devices
+    !CPE::
+        cf.hostfirewall
+
+packages:
+
+    any::
+
+        # Check some crucial packages are installed
+        firewall pkgmgr=dpkg action=install ifelapsed=120
+
+copy:
+
+    any::
+
+        # Copy includes
+        $(master_cfinput)/services/firewall
+            dest=/etc/firewall/classes.d include=*.inc r=1 mode=0640 
+            server=$(policyhost) type=sum owner=root group=root
+
+        # Copy all the defined classes onto the computer
+!for %details in %firewall.firewall_classes
+        $(master_cfinput)/%details.file_path 
+            dest=/etc/firewall/classes.d/%details.firewall_class_name
+            mode=0640 server=$(policyhost) type=sum owner=root group=root
+!end for
+
+shellcommands:
+
+    any::
+
+    restart_firewall::
+        "/etc/init.d/firewall restart"
+
+editfiles:
+
+###########
+#
+# END cf.firewall
+#
+###########

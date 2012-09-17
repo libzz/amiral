@@ -1,0 +1,144 @@
+Assets and asset locations in the CRCnet configuration system
+-------------------------------------------------------------
+
+Hardware in the CRCnet system is tracked by assigning it an asset number. In
+general each peice of hardware relates to a single asset number. Assets have
+subassets which are components of the asset that perform a particular function,
+generally a subasset is inseperable from the actual asset (or the asset would
+not function without the subasset). Each asset has a set of default properties
+(asset #, description, serialno, currency, price, date purchased, supplier)
+which are used to store basic asset data. These properties are required in the
+database, but the interface will allow them to default to "empty" values. 
+
+Assets and Subassets in the configuration system are grouped by type. An asset
+type defines which subassets may be present for assets that are instances of
+that type while a subasset type defines the properties that may be present for
+subassets that are instances of that type. Subassets and properties may be 
+specified as required or optional via this type system. 
+
+For example, an asset entry related to a soekris biscuit pc uses the following
+concepts described above:
+
+    Property:       Mac Address
+    Property:       RAM
+    Property:       Hard Drive Size
+
+    Subasset Type:  Motherboard
+                    * Has properties
+                      - RAM (MB) (Required)
+                      - Hard Drive Size (MB) (Required)
+
+    Subasset Type:  Ethernet Interface
+                    * Has properties
+                      - MAC Address (required)
+
+    Asset Type:     Soekris net4521
+                    * Has subassets
+                      - Motherboard (required)
+                      - Ethernet Interface (eth0) (required)
+                      - Ethernet Interface (eth1) (required)
+
+    Asset:          Of type "Soekris net4521" has following data
+                    - Asset #
+                    - Description
+                    - Serial No
+                    - Currency, Price
+                    - Date Purchased
+                    - Supplier 
+                    - Notes
+                    * Motherboard Subasset
+                      - RAM 
+                      - Hard Drive Size
+                    * eth0 Subasset
+                      - MAC address
+                    * eth1 Subasset
+                      - MAC address
+
+Asset Events are used to track the history of an asset, there are 9 asset 
+events defined at this point
+- Imported
+    The asset was imported into the DB (previously existed elsewhere)
+- Location Changed
+    The location of the asset was updated (discussed below)
+- Attached to Asset
+    The asset was attached to another asset (discussed below)
+- Created
+    The asset was added to the DB (did not previously exist)
+- Removed from Stock
+    Indicates that the asset has been disposed of
+- Details Updated
+    Indicates that the primary asset details have been updated
+- Property Updated
+    Indicates that a property of a subasset has been updated
+- Subasset Added
+    Indicates that an optional subasset was added to the asset
+- Subasset Removed
+    Indicates that an optional subasset was removed from the asset
+
+Asset Location
+--------------
+
+The configuration system allows asset location to be assigned in one of two
+ways. An asset may be marked as being at place or as being attached to another
+asset. Attached assets derive their location from that of their parent asset. 
+
+Certain sites in the configuration system are marked as "Stock", that is when
+an asset is assigned to that site it is regarded as "In Stock" by the system,
+all newly created assets are assigned to "In Stock". 
+
+When an asset is selected for use as a host or interface it's location is
+automatically updated in the location table. However assets may also be
+assigned to a site independently of whether they are used for a host or 
+interface.
+
+Asset Functions
+---------------
+
+Different assets or subassets may be used for different tasks 
+(IE, A soekris can be a host, but not a interface. A wireless card can be an
+interface but not a host). When building a list of assets to present to the
+user (for example to create a new host) this list of functions is consulted to
+determine which assets in the database to populate the list with. 
+
+Asset Use
+---------
+
+When populating lists of assets it is common to want to only include "unused",
+assets in the list. An asset is unused if it meets the following criteria
+
+- It's current location is at the current site AND
+- It is not attached to another asset AND
+- It is not being used for it's function already
+
+For example:
+
+    Assets:
+    1 - Soekris net4521 - In Stock
+    2 - Soekris net4521 - At site 'MWP', not used for anything
+    3 - Soekris net4521 - At site 'MWP', used for host 'MWP'
+    4 - Wireless card - In Stock
+    5 - Wireless card - At site 'MWP', used for interface 'pws' of host MWP
+    6 - Wireless card - At site 'PWS', unused
+    7 - Wireless card - attached to asset 4
+
+    User requests to add a new host, available asset list contains:
+    [1] Soekris net4521
+
+    User requests to add a new host at site MWP, available asset list contains:
+    [1] Soekris net4521
+    [2] Soekris net4521
+
+    Users selects asset 2 and creates new host MPH at site MWP
+
+    User requests to add a new interface to host MPH, available asset list:
+    [4] - Wireless card
+
+    User requests to add a new interface to host PWS as site PWS, list contains:
+    [4] - Wireless card
+    [6] - Wireless card
+
+To get a list of assets "in stock" the above criteria would simply be used
+with the site set to "stock". Note that assets might be at the "stock"
+location but be "in use" (if for example they are assigned to a host, but that
+host is not assigned to a real site). These assets are marked as in use by the
+third criteria above.

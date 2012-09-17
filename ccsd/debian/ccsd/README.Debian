@@ -1,0 +1,10 @@
+ccsd for Debian
+---------------
+
+This package integrates very tightly with CFengine and expects to be able
+to exert full control over how CFengine operates. 
+
+In particular you should let the entire /var/lib/cfengine2/ directory
+be managed by this package.
+
+ -- Matt Brown <matt@crc.net.nz>, Wed, 15 Feb 2006 17:12:59 +1300

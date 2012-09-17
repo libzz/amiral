@@ -1,0 +1,109 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+This template sets up the quagga configuration on each host
+*#
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "cf.quagga"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict with CFengine
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+################################################################
+#
+# cf.quagga -- for %domain
+# $Date$
+#
+# This file contains configuration for quagga
+#
+# WARNING: Do not modify this file since it is automatically
+#          generated
+#
+################################################################
+
+###########
+#
+# BEGIN cf.quagga
+#
+###########
+
+control:
+
+    any::
+
+        # Classes that may become defined as we proceed
+        AddInstallable = ( restart_quagga )
+
+    restart_quagga::
+        autodefine = ( /etc/quagga/ospfd.conf )
+        autodefine = ( /etc/quagga/zebra.conf )
+        autodefine = ( /etc/quagga/daemons )
+
+files:
+
+    any::
+        # Check Quagga run directory
+        /var/run/quagga r=0 mode=0755 action=fixdirs ifelapsed=60
+        # Check Quagga configuration permissions
+        /etc/quagga/* mode=0640 owner=root group=root r=0 action=fixplain
+             inform=true syslog=true ifelapsed=60
+
+    # Check vty permissions on things other than BPCs
+    !Distrib_crcnetbpc::
+        /var/run/quagga/*.vty r=0 mode=770 owner=quagga group=quaggavty
+            action=fixall inform=true syslog=true ifelapsed=60
+
+packages:
+
+    any::
+
+        # Check some crucial packages are installed
+        quagga pkgmgr=dpkg action=install ifelapsed=120
+
+copy:
+
+    any::
+
+    Distrib_crcnetbpc::
+
+        # Quagga configuration
+        $(host_config)/ospfd.conf dest=/etc/quagga/ospfd.conf mode=0640
+            server=$(policyhost) type=sum owner=root group=root
+        $(host_config)/zebra.conf dest=/etc/quagga/zebra.conf mode=0640
+            server=$(policyhost) type=sum owner=root group=root
+        $(host_config)/quagga_daemons dest=/etc/quagga/daemons mode=0640
+            server=$(policyhost) type=sum owner=root group=root
+
+    Distrib_crcnet::
+
+        # Quagga configuration
+        $(host_config)/ospfd.conf dest=/etc/quagga/ospfd.conf mode=0660
+            server=$(policyhost) type=sum owner=quagga group=quaggavty
+        $(host_config)/zebra.conf dest=/etc/quagga/zebra.conf mode=0660
+            server=$(policyhost) type=sum owner=quagga group=quaggavty
+        $(host_config)/quagga_daemons dest=/etc/quagga/daemons mode=0640
+            server=$(policyhost) type=sum owner=quagga group=quaggavty
+
+shellcommands:
+
+    any::
+
+    restart_quagga::
+        "/etc/init.d/quagga restart"
+
+editfiles:
+
+###########
+#
+# END cf.quagga
+#
+###########

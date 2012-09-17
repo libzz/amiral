@@ -1,0 +1,71 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+This template sets up the solar configuration on each host
+*#
+#attr $author = "Chris Browning <chris@rurallink.co.nz>"
+#attr $version = "$Id: cf_solar.tmpl 1266 2007-01-03 02:23:32Z mglb1 $"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "cf.solar"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict with CFengine
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+################################################################
+#
+# cf.solar -- for %domain
+# $Date$
+#
+# This file contains configuration for Rlac
+#
+# WARNING: Do not modify this file since it is automatically
+#          generated
+#
+################################################################
+
+###########
+#
+# BEGIN cf.solar
+#
+###########
+
+control:
+
+    any::
+
+        # Classes that may become defined as we proceed
+        AddInstallable = ( restart_microsnmp )
+
+packages:
+
+    any::
+
+    # Check some crucial packages are installed
+    tristar-tools pkgmgr=dpkg action=install ifelapsed=120
+        define=restart_microsnmp
+
+copy:
+
+    any::
+
+
+shellcommands:
+
+    any::
+
+    restart_microsnmp::
+        "/etc/init.d/microsnmp stop"
+        "/etc/init.d/microsnmp start"
+
+###########
+#
+# END cf.solar
+#
+###########

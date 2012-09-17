@@ -1,0 +1,64 @@
+The CRCnet Configuration System uses OpenSSL certificates for mutual
+authentication of the client and server. 
+
+The following components are needed
+
+* 1 x Configuration System Certificate Authority
+* 1 x Server Key
+* n x Client Keys
+
+Some short notes for now
+
+Create your Config System CA
+============================
+
+$ openssl req -new -nodes -out ./ccsd-ca-req.pem -keyout ./ccsd-ca-key.pem
+
+You should sign this with your trusted organisation CA (or some other third
+party CA) to get your ccsd-ca-cert.pem 
+
+Create the server key and sign with the Config System CA
+========================================================
+
+$ openssl req -new -nodes -out ./ccsd-server-req.pem \
+    -keyout ./ccsd-server-key.pem
+
+The ou field must be identical to your config system CA certificate
+The cn field must be "server" (no quotes)
+Country Name (2 letter code) [AU]:NZ
+State or Province Name (full name) [Some-State]:.
+Locality Name (eg, city) []:Hamilton
+Organization Name (eg, company) [Internet Widgits Pty Ltd]:CRCnet
+Organizational Unit Name (eg, section) []:ccsd
+Common Name (eg, YOUR name) []:server
+Email Address []:admins@crc.net.nz
+
+$ openssl x509 -req -in ccsd-server-req.pem -out ccsd-server-cert.pem \
+    -signkey ccsd-server-key.pem -CA ccsd-ca-cert.pem \
+    -CAkey ccsd-ca-key.pem -CAcreateserial -days 365
+
+Create a client key and sign with the Config System CA
+======================================================
+
+This step can be performed multiple times for multiple clients
+
+It is suggested that you use the clients hostname as the cn. The placeholder
+<clientname> is used in the example below.
+The ou must be identical to the CA certificate
+
+$ openssl req -new -nodes -out ./ccsd-<clientname>-req.pem \
+    -keyout ./ccsd-<clientname>-key.pem
+
+Country Name (2 letter code) [AU]:NZ
+State or Province Name (full name) [Some-State]:.
+Locality Name (eg, city) []:Hamilton
+Organization Name (eg, company) [Internet Widgits Pty Ltd]:CRCnet
+Organizational Unit Name (eg, section) []:ccsd
+Common Name (eg, YOUR name) []:<clientname>
+Email Address []:<your_email>
+
+$ openssl x509 -req -in ccsd-<clientname>-req.pem \
+    -out ccsd-<clientname>-cert.pem \
+    -signkey ccsd-<clientname>-key.pem -CA ccsd-ca-cert.pem \
+    -CAkey ccsd-ca-key.pem -CAcreateserial -days 365
+

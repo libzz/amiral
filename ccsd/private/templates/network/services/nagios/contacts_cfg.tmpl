@@ -1,0 +1,85 @@
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "contacts.cfg"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict with Nagios
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+!set %nagios = %services["nagios"]
+#############################################################
+#
+# contacts.cfg -- for %domain
+# $Date$
+# 
+# WARNING: Do not modify this file since it is automatically
+#          generated.
+# 
+#          Site specific configuration that you wish to keep 
+#          separate from the configuration system can be
+#          placed in the local.cfg file in this directory
+#
+#############################################################
+!for %name,%contact in %nagios.contacts.items()
+    !set %service_notifications_l = []
+    !set %host_notifications_l = []
+    !if %contact.notify_none
+        %service_notifications_l.append("n") !slurp
+        %host_notifications_l.append("n") !slurp
+    !else
+        !if %contact.notify_service_critical
+            %service_notifications_l.append("c")!slurp
+        !end if
+        !if %contact.notify_service_warning
+            %service_notifications_l.append("w") !slurp
+        !end if
+        !if %contact.notify_service_unknown
+            %service_notifications_l.append("u") !slurp
+        !end if
+        !if %contact.notify_service_recovery
+            %service_notifications_l.append("r") !slurp
+        !end if
+        !if %contact.notify_host_down
+            %host_notifications_l.append("d") !slurp
+        !end if
+        !if %contact.notify_host_unreachable
+            %host_notifications_l.append("u") !slurp
+        !end if
+        !if %contact.notify_host_recovery
+            %host_notifications_l.append("r") !slurp
+        !end if
+    !end if
+    !set %service_notifications = ",".join(%service_notifications_l)
+    !set %host_notifications = ",".join(%host_notifications_l)
+
+define contact {
+    contact_name                    %contact.username
+    alias                           %contact.givenname %contact.surname
+    service_notification_period     24x7
+    host_notification_period        24x7
+    service_notification_options    %service_notifications
+    host_notification_options       %host_notifications
+    service_notification_commands   notify-by-email
+    host_notification_commands      host-notify-by-email
+    email                           %contact.email
+}
+!end for
+
+define contact {
+    contact_name               crcnet-null
+    alias                           Null Contact
+    service_notification_period     24x7
+    host_notification_period        24x7
+    service_notification_options    n
+    host_notification_options       n
+    service_notification_commands   notify-by-email
+    host_notification_commands      host-notify-by-email
+    email                           null@%domain
+}

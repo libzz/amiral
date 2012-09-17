@@ -1,0 +1,319 @@
+/* Copyright (C) 2006  The University of Waikato
+ *
+ * This file is part of crcnetd - CRCnet Configuration System Daemon
+ *
+ * Style definitions for the RuralLink Devices
+ *
+ * Author:       Matt Brown <matt@crc.net.nz>
+ * Version:      $Id$
+ *
+ * No usage or redistribution rights are granted for this file unless
+ * otherwise confirmed in writing by the copyright holder.
+ */
+img {
+	border: 0px;
+	margin: 0px;
+}
+
+a:link {
+	background: transparent;
+	color: #225599;
+	text-decoration: none;
+}
+a:visited {
+	background: transparent;
+	color: #225599;
+	text-decoration: none;
+}
+a:hover {
+	background: transparent;
+	/*color: #3377FF;*/
+	color: #0044FF;
+	text-decoration: underline;
+}
+a:active {
+	background: transparent;
+	color: red;
+	text-decoration: underline;
+}
+a.hidden:link {
+	background: transparent;
+	color: #777777;
+	text-decoration: none;
+}
+a.hidden:visited {
+	background: transparent;
+	color: #777777;
+	text-decoration: none;
+}
+a.hidden:hover {
+	background: transparent;
+	color: blue;
+	text-decoration: underline;
+}
+a.hidden:active {
+	background: transparent;
+	color: blue;
+	text-decoration: underline;
+}
+
+body {
+	background: #dddddd;
+	color: black;
+	padding: 0px;
+	margin: 0px;
+	font-family: sans-serif;	
+    font-size: 11px;
+}
+h1 {
+	font-size: 14px;
+	text-align: right;
+    margin: 0px;
+	border-bottom: 1px solid #267e44;
+	font-family: sans-serif;
+    white-space: nowrap;
+    margin-bottom: 10px;
+}
+h2 {
+	font-size: 13px;
+	margin: 0px;
+	border-bottom: 1px solid #267e44;
+	font-family: sans-serif;
+	white-space: nowrap;
+}
+h3 {
+	font-size: 13px;
+	margin: 0px;
+	border-bottom: 1px dotted grey;
+	font-family: sans-serif;
+	white-space: nowrap;
+}
+div.menu {
+	background: white;
+	color: black;
+	padding-left: 30px;
+	padding-right: 30px;
+	padding-top: 15px;
+	padding-bottom: 15px;
+	margin: 10px;
+	border: 1px solid gray;
+	margin-right: 0px;
+	-moz-border-radius: 15pt;
+}
+#header {
+	background: #267e44 url('/resources/rl-header-bg.png') no-repeat;
+	color: black;
+	border-bottom: 2px solid #888888;
+    height: 109px;
+}
+#header #rl-logo {
+    margin-left: 90px;
+    padding-top: 20px;
+}
+#header #rl-prod-imgs {
+    float: right;
+    background: white;
+}
+
+div.content > p {
+	text-align: justify;
+}
+
+div.content {
+	background: white;
+	color: #222222;
+	padding-left: 30px;
+	padding-right: 30px;
+	padding-top: 15px;
+	padding-bottom: 15px;
+	margin: 10px;
+	border: 1px solid gray;
+	-moz-border-radius: 15pt;
+}
+div.footer {
+	background: transparent;
+	color: #777777;
+	text-align: center;
+	border-top: 1px solid #222222;
+	font-size: small;
+	margin: 10px;
+}
+span.note {
+    font-size: 9px;
+    font-weight: normal;
+    color: #999999;
+}
+span.error {
+    font-weight: bold;
+    color: red;
+}
+#statusgraph {
+    text-align:center;
+}
+table {
+	width: 100%;
+}
+
+td {
+	vertical-align: top;
+}
+td.title2 {
+    padding: 10px;
+    text-align: right;
+    vertical-align: middle;
+}
+td.title1 {
+    padding: 10px;
+    text-align: left;
+    vertical-align: middle;
+}    
+td.content {
+	width: 100%;
+}
+th {
+    text-align: left;
+    background: #888888;
+}
+tr.row1 {
+    background: transparent;
+}
+tr.row2 {
+    background: #dddddd;
+}
+td.disabled {
+    color: #999999;
+}
+ul {
+	padding-left: 10px;
+	margin-left: 0pt;
+}
+
+li {
+	padding-left: 0pt;
+	margin-left: 0pt;
+	white-space: nowrap;
+}
+.hidden {
+    display: none;
+}
+
+/* Generic styles for displaying status information */
+.statusok {
+    color: green;
+    font-weight: bold;
+}
+.statuswarning {
+    color: orange;
+    font-weight: bold;
+}
+.statuscritical {
+    color: red;
+    font-weight: bold;
+}
+.ssmeter {
+    margin-top: 1em;
+}
+.ssmeter DIV {
+    height: 10px;
+    width: 20px;
+    float: left;
+    border: 1px solid black;
+    border-right: 0px;
+    margin-top: 3px;
+}
+.ssmeter DIV.rightmost {
+    border-right: 1px solid black;
+}
+.ssmeter .bad {
+    background-color: red;
+}
+.ssmeter .average {
+    background-color: orange;
+}
+.ssmeter .good {
+    background-color: green;
+}
+.ssmeter .none {
+    background-color: #f8f8f8;
+}
+#frequency {
+    width: 2em;
+    border: 1px solid #dddddd;
+}
+DIV.wizard {
+    width:700px;
+    margin-left:auto;
+    margin-right:auto;
+    margin-top:50px;
+    margin-bottom:50px;
+    background: white;
+	color: #222222;
+	padding-left: 30px;
+	padding-right: 30px;
+	padding-top: 15px;
+	padding-bottom: 15px;
+	border: 1px solid gray;
+	-moz-border-radius: 15pt;
+}
+DIV.wizard TH:first-child {
+    width: 14em;
+}
+.progressbar DIV {
+    float: left;
+    margin: 10px;
+    margin-bottom: 20px;
+    color: #267e44;
+    text-align: center;
+}
+.progressbar DIV.past {
+    color: black;
+}
+.progressbar DIV.future {
+    color: #cccccc;
+}
+.progressbar SPAN.stepno {
+    font-size: 2em;
+    font-weight: bold;
+}
+#step2.wizard,#step3.wizard,#step4.wizard,#step5.wizard {
+    display: none;
+}
+A.next {
+    font-size: 2em;
+    font-weight: bold;
+    color: #267e44;
+    float: right;
+}
+A.prev {
+    font-size: 2em;
+    font-weight: bold;
+    color: #267e44;
+    float: left;
+}
+#updatewindow {
+    width:150px;
+    position: absolute;
+    top: 50%;
+    left:  50%;
+    background: white;
+	color: #222222;
+	padding-left: 30px;
+	padding-right: 30px;
+	padding-top: 15px;
+	padding-bottom: 15px;
+	border: 1px solid gray;
+	-moz-border-radius: 15pt;
+    display: none;
+    font-weight: bold;
+}
+#wep, #wephex {
+    font-family: fixed;
+}
+A.disablewizard {
+    clear: both;
+    margin-top: 10px;
+    padding: 8px;
+    background-color: #cccccc;
+    border: 2px outset #999999;
+    color: darkblue;
+}

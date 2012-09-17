@@ -1,0 +1,45 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+This template creates the HostAPd Defaults File
+*#
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "hostapd_default"
+#attr $serviceName = "hostapd"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+#
+# CRCnet BiscuitPC HostAPd Defaults File
+#
+# This file was automatically generated on the date below, DO NOT EDIT
+# $Date$
+
+# Disable the daemon on startup
+# hostapd is started via /etc/network/interfaces for the appropriate
+# Access Points
+RUN_DAEMON="no"
+
+# Uncomment the following line, and provide the absolute
+# path to one or more configuration files to be used by the
+# hostapd daemon. If left commented, the daemon will use 
+# /etc/hostapd/hostapd.conf
+# 
+#DAEMON_CONF="/etc/hostapd/hostapd.conf"
+
+# Additional daemon options
+#       -d   show more debug messages (-dd for even more)
+#       -K   include key data in debug messages
+#       -t   include timestamps in some debug messages
+# 
+#DAEMON_OPTS="-dd"

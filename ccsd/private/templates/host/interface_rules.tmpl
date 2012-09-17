@@ -1,0 +1,57 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+This template creates the udev rules file which controls interface naming.
+
+VAP base interfaces are renamed based on their assetID to make it easy
+for interface definitions to find them
+*#
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "interface.rules"
+#from crcnetd.modules.ccs_interface import INTERFACE_TYPE_VAP
+#from crcnetd.modules.ccs_asset import ccs_subasset
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict with CFengine
+EOLSlurpToken = ^^^
+#end compiler-settings
+# Interface naming rules for the crcnet-bpc Distribution
+#
+# MAC addresses in this file are case-sensitive (all lowercase)
+#
+# These rules should be applied automatically on boot by udev, but 
+# can be reapplied by executing /usr/bin/refresh_ifnames on a running
+# system.
+#
+# This file was automatically generated on the date below, DO NOT EDIT:
+# \$Date$
+
+# The following renaming rules handle normal physical interfaces on the system
+#set $subasset_ids={}
+#for $name,$iface in $interfaces.items()
+    ## Handle creating VAP interfaces
+    #if $iface.subasset_id != ""
+        #set $sa = $ccs_subasset($session_id, $iface.subasset_id)
+        #if $sa.supportsFunction("vap")
+            #if $iface.subasset_id not in $subasset_ids.keys()
+SYSFS{address}="$iface.mac", NAME="vbase$iface.subasset_id"
+                #set $subasset_ids[$iface['subasset_id']]=1
+                #continue
+            #end if
+        #end if
+    #end if
+    ## Skip unconfigured interfaces
+    #if $iface.interface_id == ""
+        #continue
+    #end if
+    ## VAP interfaces are not handled in this file
+    #if $iface.interface_type == INTERFACE_TYPE_VAP
+        #continue
+    #end if
+SYSFS{address}="$iface.mac", NAME="$iface.name"
+#end for

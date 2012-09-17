@@ -1,0 +1,144 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+This template sets up configuration common to crcnet-bpc devices
+*#
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "cf.bpccommon"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict with CFengine
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+################################################################
+#
+# cf.bpccommon -- for %domain
+# $Date$
+#
+# This file contains configuration that is common for all CRCnet
+# BPC devices
+#
+# WARNING: Do not modify this file since it is automatically
+#          generated
+#
+################################################################
+
+###########
+#
+# BEGIN cf.cpe
+#
+###########
+
+groups:
+
+control:
+
+    any::
+
+        # Classes that may become defined as we proceed
+        AddInstallable = ( restart_networking )
+
+files:
+
+    any::
+        # Check root's SSH directory permissions
+        /root/.ssh/ r=0 mode=0700 action=fixdirs ifelapsed=60
+        # Check root's authorized keys file
+        /root/.ssh/authorized_keys r=0 mode=0644 checksum=md5 action=fixplain
+            inform=true syslog=true ifelapsed=60
+
+tidy:
+
+    any::
+        # Big logfiles more than a day old
+        /var/log/ r=inf pattern=* size=500k age=1 ifelapsed=60
+        
+packages:
+
+    any::
+
+        # Check some crucial packages are installed
+        ssh pkgmgr=dpkg action=install ifelapsed=120
+
+        # Ensure we have atleast crcnetbpc12 version of apt-get as previous
+        # versions have fatal bugs that can prevent upgrades
+        apt-get pkgmgr=dpkg version=crcnetbpc12 cmp=ge action=install ifelapsed=120
+
+        # microsnmp is a base package that we would always like to have
+        microsnmp pkgmgr=dpkg action=install ifelapsed=120
+
+        # tcpdump is used pretty much everywhere too
+        tcpdump pkgmgr=dpkg action=install ifelapsed=120
+
+copy:
+
+    any::
+        
+        # Basic machine configuration
+        $(bpccommon_config)/crontab dest=/etc/crontab mode=0644
+            server=$(policyhost) type=sum owner=root group=root
+
+        $(bpccommon_config)/sources.list dest=/etc/apt/sources.list mode=0644
+            server=$(policyhost) type=sum owner=root group=root
+
+        $(bpccommon_config)/syslog.conf dest=/etc/syslog.conf mode=0644
+            server=$(policyhost) type=sum owner=root group=root
+            define=restart_syslog
+        
+        # Networking configuration
+        $(bpccommon_config)/network_options dest=/etc/network/options mode=0644
+            server=$(policyhost) type=sum owner=root group=root
+            define=restart_networking
+
+        # SSH Configuration
+        $(bpccommon_config)/sshd_config dest=/etc/ssh/sshd_config mode=0644
+            server=$(policyhost) type=sum owner=root group=root
+            define=restart_ssh
+        $(bpccommon_config)/root_authorized_keys
+            dest=/root/.ssh/authorized_keys mode=644 server=$(policyhost)
+            type=sum owner=root group=root
+
+        # Helper scripts
+        $(shared_config)/reload_madwifi_drivers
+            dest=/usr/bin/reload_madwifi_drivers mode=755 server=$(policyhost)
+            type=sum owner=root group=root
+        
+shellcommands:
+
+    any::
+
+    restart_networking.!PXE_booting::
+        "/etc/init.d/networking stop"
+        "/etc/init.d/networking start"
+    
+    restart_ssh::
+        "/etc/init.d/ssh restart"
+
+    dist_upgrade::
+        "/usr/bin/apt-get -y upgrade"
+        "/sbin/depmod -ae"
+
+    restart_crcnet_monitor::
+        "/etc/init.d/crcnet-monitor restart"
+    
+    restart_syslog::
+        "/etc/init.d/sysklogd restart"
+
+    reload_madwifi_drivers::
+        "/usr/bin/reload_madwifi_drivers"
+
+editfiles:
+
+###########
+#
+# END cf.bpccommon
+#
+###########

@@ -1,0 +1,48 @@
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "snat_ethernet_customer.inc"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict with bash
+cheetahVarStartToken = %
+directiveStartToken = !!
+commentStartToken = !!!
+EOLSlurpToken = ^^^
+#end compiler-settings
+# Loop through all interfaces
+for ifname in /etc/firewall/interfaces.d/*; do
+    # Read the name of the class assigned to this interface
+    l=`readlink $ifname`
+    cname=`basename "$l"`
+    # Skip any interface that's not serving an ethernet_customer
+    if [ "$cname" != "ethernet_customer" ]; then
+        continue
+    fi
+    # This is an ethernet customer interface, retrieve IPs
+    ifname=`basename $ifname`
+    ifname="${ifname/.if/}"
+
+    # The real-world IP assigned to this customers interface
+    RW_IP=`awk "\\$1 ~ /^$ifname/{print \\$3}" < /etc/ccsd/accounting_users`
+
+    # Skip if there is no real-world IP address
+    if [ -z "$RW_IP" ]; then
+        continue
+    fi
+
+    # The network used on the interface, defined as being a /24!
+    NETWORK=`ip addr list dev $ifname | awk '$2 ~ /\/24/{print $2}'`
+    if [ -z "$NETWORK" ]; then
+        NETWORK="192.168.0.0/24"
+    fi
+
+    # Drop incoming forwarded traffic from the internal network
+    policy forward-in REJECT --source $NETWORK
+
+    # Add the outgoing SNAT
+    policy postrouting-out SNAT --source $NETWORK --to-source $RW_IP
+done

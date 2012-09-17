@@ -1,0 +1,43 @@
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "eap.conf"
+#attr $serviceName = "radius"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict
+cheetahVarStartToken = ~
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+!set ~radius = ~services["radius"]
+#############################################################
+#
+# eap.conf -- Free RADIUS configuration for ~domain
+# $Date$
+# 
+# WARNING: Do not modify this file since it is automatically
+#          generated.
+#
+#############################################################
+eap {
+    timer_expire     = 60
+    ignore_unknown_eap_types = no
+    cisco_accounting_username_bug = no
+
+    tls {
+        private_key_file = ${raddbdir}/certs/radius-key.pem
+        certificate_file = ${raddbdir}/certs/radius-cert.pem
+        CA_file = ${raddbdir}/certs/cacert.pem
+        dh_file = ${raddbdir}/certs/dh
+        random_file = ${raddbdir}/certs/random
+    }
+    ttls { 
+    }
+    md5 { 
+    }
+}

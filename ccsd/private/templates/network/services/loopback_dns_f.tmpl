@@ -1,0 +1,26 @@
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "loopback_dns_f"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+cheetahVarStartToken = %
+#end compiler-settings 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+; Forward DNS records for host loopback (Administrative) addresses
+; $Date$
+; 
+; WARNING: Do not modify this file since it is automatically
+;          generated.
+;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+#set %names = %hosts.keys()
+#silent %names.sort()
+#for %host_name in %names
+    #set %ip_address = %hosts[%host_name].ip_address
+%host_name		IN	A	%ip_address
+#end for

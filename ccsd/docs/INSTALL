@@ -1,0 +1,26 @@
+You need the following debian package installed (sarge)
+
+python2.4
+python2.4-twisted
+python2.4-pyopenssl
+python2.4-pgsql
+python2.4-svn
+python2.4-cheetah
+
+Some of those packages are not in sarge, use the following in your sources.list
+
+ deb http://packages.crc.net.nz/debian crcnet main
+
+Make sure you create a svn repository for the configs
+svnadmin create --fs-type fsfs ccsd-configs
+
+pre-revprop-change hook like so:
+#!/bin/sh
+
+# PRE-REVPROP-CHANGE HOOK
+
+# Allow all changes for now...
+exit 0
+
+
+Make sure you put the path to this repository in your config file

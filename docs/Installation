@@ -1,0 +1,57 @@
+Installing the Configuration System Daemon (ccsd)
+System Requirements
+
+You need to add the CRCnet Package Repository to your source.list file:
+
+    deb  http://packages.crc.net.nz/debian/ crcnet main
+
+You may want to pin it so that only the following packages are used.
+
+Then ensure the following packages are installed
+
+    python2.4
+    python2.4-twisted
+    python2.4-pyopenssl
+    python2.4-pgsql
+    python2.4-svn
+    python2.4-cheetah 
+
+Installing from Source
+
+    Untar the downloaded source
+    run make install-server as root
+    Initialise the database as described at DatabaseInstallation
+    Create certificates as described at Authentication
+    Create a configuration file based off the DefaultServerConfiguration
+    run ccsd -c <location of configuration file> 
+
+Installing from .deb
+
+If you have added the CRCnet repository specified about to your sources.list you can simply run
+
+    apt-get install ccsd
+
+Installing the Web Interface (ccsweb)
+System Requirements
+
+You will need the following packages installed
+
+    apache (with SSL support) or apache2
+    php4
+    php4-curl (for SSL support)
+    smarty 
+
+Installing from Source
+
+    Untar the downloaded source into a directory, we will refer to this directory as ccsweb_base
+    Install the DefaultApacheConfiguration at <ccsweb_base>/httpd.conf
+    Create a client certificate as described in Authentication
+    Add an approprite entry to html/lib/ccsweb.conf eg.
+
+    // addNetwork(name, site, server, port, cert, server_path, admin_email)
+    addNetwork("Site Name", "admin.localdomain", "ccsd.localdomain", 5565, 
+        "/path/to/webcert.pem", "/RPC2", "root@localdomain");
+
+    Add an Include line to your apache.conf to enable the configuration, eg.
+
+    Include <ccsweb_base>/httpd.conf

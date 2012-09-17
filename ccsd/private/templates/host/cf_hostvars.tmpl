@@ -1,0 +1,54 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+This template generates the host specific CFengine configuration file
+*#
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "cf.hostvars"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict with CFengine
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+#############################################################
+#
+# cf.hostvars -- for %host_name.%domain 
+# $Date$
+#
+# This file contains host-specific definitions that cannot go
+# in the network wide CFengine configuration
+#
+# WARNING: Do not modify this file since it is automatically
+#          generated
+#
+#############################################################
+
+###########
+#
+# BEGIN cf.hostvars
+#
+###########
+
+control:
+
+    any::
+        # Host "loopback IP" to use for management tasks
+        host_ip         = ( %ip_address )
+
+    !PXE_booting::
+        # Use the specified interface only
+        BindToInterface = ( $(host_ip) )
+
+###########
+#
+# END cf.hostvars
+#
+###########

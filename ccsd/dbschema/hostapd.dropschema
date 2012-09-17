@@ -1,0 +1,12 @@
+-- 
+-- PostgreSQL drop schema for HostAPD Service
+--
+-- The hostap module has a dependency on the RADIUS module
+--
+-- Author:   Matt Brown  <matt@crc.net.nz>
+-- Version:  $Id$
+--
+
+DROP TABLE hostapd_interface;
+
+-- vim: ft=sql

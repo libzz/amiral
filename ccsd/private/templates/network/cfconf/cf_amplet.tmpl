@@ -1,0 +1,115 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+This template sets up the AMP cfengine rules on each host
+*#
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "cf.amplet"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict with CFengine
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+!set %amp = %services["amplet"]
+################################################################
+#
+# cf.amplet -- for crc.net.nz
+#
+# This file contains configuration information for the AMP system.
+#
+# WARNING: Do not modify this file since it is automatically
+#          generated
+#
+################################################################
+
+control:
+
+    any::
+        # Source File Locations
+        amp_cfinput = ( $(master_cfinput)/services/amplet )
+        
+        # Classes that may be defined as we proceed
+        AddInstallable = ( restart_amp )
+        
+        # Restart AMP if any of these files are updated
+        restart_amp::
+            autodefine = ( /etc/amp/collectors )
+            autodefine = ( /etc/amp/nametable )
+            autodefine = ( /etc/amp/schedule )
+            autodefine = ( /etc/amp/*pem )
+
+packages:
+
+    any::
+        amplet-common-minimal pkgmgr=dpkg action=install ifelapsed=120
+        amplet-client-minimal pkgmgr=dpkg action=install ifelapsed=120
+    
+copy:
+
+    any::
+    
+        #$(host_config)/amplet/nametable  dest=/etc/amp/nametable mode=0644 
+        #    server=$(policyhost) type=sum owner=root group=root
+        #$(host_config)/amplet/schedule dest=/etc/amp/schedule mode=0644
+        #    server=$(policyhost) type=sum owner=root group=root
+	    $(amp_cfinput)/ampname dest=/etc/amp/ampname mode=0644
+            server=$(policyhost) type=sum owner=root group=root
+	    $(amp_cfinput)/default dest=/etc/default/amp mode=0644
+            server=$(policyhost) type=sum owner=root group=root
+	    $(amp_cfinput)/collectors dest=/etc/amp/collectors mode=0644
+            server=$(policyhost) type=sum owner=root group=root
+        $(amp_cfinput)/cacert.pem dest=/etc/amp/cacert.pem mode=0644
+            server=$(policyhost) type=sum owner=root group=root
+        $(amp_cfinput)/client-cert.pem dest=/etc/amp/client-cert.pem
+            mode=0644 server=$(policyhost) type=sum owner=root 
+            group=root
+        $(amp_cfinput)/client-privkey.pem 
+            dest=/etc/amp/client-privkey.pem mode=0600
+            server=$(policyhost) type=sum owner=root group=root 
+
+shellcommands:
+		
+    restart_amp::
+        "/etc/init.d/amp stop"
+        "/etc/init.d/amp start"
+        
+    kill_amp::
+        "/usr/bin/killall xfer"
+        "/usr/bin/killall measured"
+        
+    start_amp::
+        "/etc/init.d/amp start"
+        
+    stop_amp::
+        "/etc/init.d/amp stop"
+    
+    disable_amp::
+        "/etc/init.d/amp stop"
+        "/usr/bin/killall measured"
+        "/usr/bin/killall xfer"
+        "/bin/rm /etc/rc2.d/S20amp"
+        
+    enable_amp::
+        "/bin/ln -s ../init.d/amp /etc/rc2.d/S20amp"
+        "/etc/init.d/amp start"
+        
+editfiles:
+    
+    { /etc/services
+        AppendIfNoSuchLine "ampxfer     8810/tcp    #amp"
+        AppendIfNoSuchLine "ampcommand  8811/tcp    #amp"
+        AppendIfNoSuchLine "ampxfercontrol  8812/tcp        # AMP"
+        AppendIfNoSuchLine "ampxferdcontrol 8813/tcp        # AMP"
+        AppendIfNoSuchLine "ampmeasuredcontrol 8814/tcp     # AMP"
+        AppendIfNoSuchLine "amptput         8815/tcp        # AMP"
+        
+        Backup "single"
+    }

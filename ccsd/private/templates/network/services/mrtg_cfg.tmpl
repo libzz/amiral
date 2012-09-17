@@ -1,0 +1,82 @@
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "mrtg.cfg"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict with MRTG
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+#############################################################
+#
+# mrtg.cfg -- for %domain
+# $Date$
+# 
+# WARNING: Do not modify this file since it is automatically
+#          generated.
+#
+#############################################################
+WorkDir: /var/lib/mrtg
+LogFormat: rrdtool
+LoadMIBS: /usr/share/snmp/mibs/CRCNET-MIB.txt,/usr/share/snmp/mibs/UCD-SNMP-MIB.txt
+
+RunAsDaemon: yes
+Interval: 5
+SnmpOptions: timeout =>  5, retries => 1
+Forks: 10
+
+!for %host_name,%host in %hosts.items()
+    !if not %host.host_active
+        !continue
+    !end if
+    !! Loop through the hosts interfaces
+    !for %name,%iface in %host.interfaces.items()
+        !! Skip unconfigured interfaces
+        !if %iface.interface_id == ""
+            !continue
+        !end if
+        !! Determine whether the interface is active    
+        !if %iface.interface_active
+            !set c=""
+        !else
+            !set c="#"
+        !end if
+        !! Traffic statistics
+#----------------------------------------------------------
+Target[%host_name-%name]: /%iface.ip_address:public@%host_name
+Title[%host_name-%name]: Traffic Statistics for %host_name (%name link)
+MaxBytes[%host_name-%name]: 1250000
+Options[%host_name-%name]: growright, bits
+        
+        !! Wireless Statistics
+        !if not %iface.wireless_interface
+            !continue
+        !end if
+#----------------------------------------------------------
+# MRTG can't handle negative values so * -1 to make these positive
+Target[%host_name-%name-sig]: linkCurrentSignalLevel/%iface.ip_address&linkCurrentNoiseLevel/%iface.ip_address:public@%host_name * -1
+Title[%host_name-%name-sig]: Signal / Noise Strength for %host_name (%name Link)
+MaxBytes[%host_name-%name-sig]:  120
+Options[%host_name-%name-sig]:  growright, gauge, nopercent, integer
+PageTop[%host_name-%name-sig]:
+YLegend[%host_name-%name-sig]:  -dbM
+LegendI[%host_name-%name-sig]:  Signal
+LegendO[%host_name-%name-sig]:  Noise
+
+#----------------------------------------------------------
+Target[%host_name-%name-snr]: linkCurrentQuality/%iface.ip_address&linkCurrentQuality/%iface.ip_address:public@%host_name
+Title[%host_name-%name-snr]: Signal to Noise Ratio for %host_name (%name Link)
+MaxBytes[%host_name-%name-snr]:  92
+Options[%host_name-%name-snr]:  growright, gauge, nopercent, integer, noi
+PageTop[%host_name-%name-snr]:
+YLegend[%host_name-%name-snr]:  SNR
+LegendO[%host_name-%name-snr]:  SNR
+
+    !end for
+!end for

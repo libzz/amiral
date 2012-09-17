@@ -1,0 +1,39 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+This template creates the Rlac Defaults File
+*#
+#attr $author = "Chris Browning <chris@rurallink.co.nz>"
+#attr $version = "$Id: rlac_default.tmpl 1243 2006-12-18 20:17:58Z mglb1 $"
+#attr $copyright = "Copyright (C) 2008  Rural Link"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "inittab"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+id:2:initdefault:
+si::sysinit:/etc/init.d/rcS
+ca::ctrlaltdel:/sbin/shutdown -t1 -r now
+~:S:wait:/sbin/sulogin
+
+l0:0:wait:/etc/init.d/rc 0
+l1:1:wait:/etc/init.d/rc 1
+l2:2:wait:/etc/init.d/rc 2
+# Run level three always runs rc2.d
+l3:3:wait:/etc/init.d/rc 2
+l4:4:wait:/etc/init.d/rc 4
+l5:5:wait:/etc/init.d/rc 5
+l6:6:wait:/etc/init.d/rc 6
+
+!if 'solar' in %service.keys() and %service['solar']['solar_enabled']
+0:345:respawn:/sbin/agetty -L 19200 /dev/ttyS0 linux
+!else
+0:2345:respawn:/sbin/agetty -L 19200 /dev/ttyS0 linux
+!end if

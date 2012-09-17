@@ -1,0 +1,45 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+Default SSHD configuration for CRCnet Biscuit PCs
+*#
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+#############################################################
+#
+# sshd_config -- for %domain 
+# $Date$
+#
+# This file contains the default SSHD configuration for
+# CRCnet Biscuit PCs
+#
+# WARNING: Do not modify this file since it is automatically
+#          generated
+#
+#############################################################
+
+# What ports, IPs and protocols we listen for
+Port 22
+Protocol 2
+UsePrivilegeSeparation no
+
+# Authentication:
+PermitRootLogin yes
+StrictModes yes
+RSAAuthentication no
+PubkeyAuthentication yes
+PermitEmptyPasswords no
+PasswordAuthentication no
+ChallengeResponseAuthentication no
+

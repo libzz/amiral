@@ -1,0 +1,42 @@
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $serviceName = "radius"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict
+cheetahVarStartToken = ~
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+!set ~radius = ~services["radius"]
+#############################################################
+#
+# dictionary -- Free RADIUS configuration for ~domain
+# $Date$
+# 
+# WARNING: Do not modify this file since it is automatically
+#          generated.
+#
+#############################################################
+#
+#       This is the master dictionary file, which references the
+#       pre-defined dictionary files included with the server.
+#
+#       Any new/changed attributes MUST be placed in this file, as
+#       the pre-defined dictionaries SHOULD NOT be edited.
+$INCLUDE        /usr/share/freeradius/dictionary
+
+#       If you want to add entries to the dictionary file,
+#       which are NOT going to be placed in a RADIUS packet,
+#       add them here.  The numbers you pick should be between
+#       3000 and 4000.
+#
+
+#ATTRIBUTE      My-Local-String         3000    string
+#ATTRIBUTE      My-Local-IPAddr         3001    ipaddr
+#ATTRIBUTE      My-Local-Integer        3002    integer

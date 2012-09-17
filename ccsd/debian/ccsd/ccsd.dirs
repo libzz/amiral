@@ -1,0 +1,5 @@
+usr/share/ccsd
+usr/sbin
+etc/ccsd
+var/run/ccsd
+var/lib/ccsd

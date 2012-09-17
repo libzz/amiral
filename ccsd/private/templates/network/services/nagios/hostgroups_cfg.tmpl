@@ -1,0 +1,55 @@
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "hostgroups.cfg"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict with Nagios
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+!set %nagios = %services["nagios"]
+#############################################################
+#
+# hostgroups.cfg -- for %domain
+# $Date$
+# 
+# WARNING: Do not modify this file since it is automatically
+#          generated.
+# 
+#          Site specific configuration that you wish to keep 
+#          separate from the configuration system can be
+#          placed in the local.cfg file in this directory
+#
+#############################################################
+
+# All hosts
+!set %hostlist = %nagios.generateNagiosHostList(%hosts)
+define hostgroup {
+    hostgroup_name          all
+    alias                   All hosts in the Configuration System
+    members                 %hostlist
+}
+
+# Service defined host groups
+!for %serviceName,%service in %services.items()
+    !if len(%service.hosts)==0
+        !continue
+    !end if
+    !set %hostlist = %nagios.generateNagiosHostList(%service.hosts)
+define hostgroup {
+    hostgroup_name          %{serviceName}_hosts
+    alias                   Hosts running the %serviceName service
+    members                 %hostlist
+}
+
+!end for
+
+# User defined host groups
+# Not yet implemented
+

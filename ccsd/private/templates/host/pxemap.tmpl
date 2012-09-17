@@ -1,0 +1,41 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+This template creates a file for each interface containing details about the
+asset used for the interface. These files are used by the PXE scripts to 
+determine which host is being PXE booted.
+*#
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $multiFile = True
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict with CFengine
+EOLSlurpToken = ^^^
+#end compiler-settings
+#for $name,$iface in $interfaces.items()
+#if not $iface.interface_active
+    #continue
+#end if
+#if $iface.interface_type == 3 or $iface.interface_type == 4
+    #continue
+#end if
+.newfile -$name
+# Interface PXE information file for $host_name
+#
+# This file contains some basic information about the interface to allow
+# the PXE scripts to determine which host they are booting.
+#
+# This file was automatically generated on the date below, DO NOT EDIT:
+# \$Date$
+
+FOUND=1
+ASSET_ID=$iface.asset_id
+HOST_NAME=$host_name
+HOST_IP=$ip_address
+MAC=$iface.mac
+#end for

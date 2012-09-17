@@ -1,0 +1,23 @@
+This directory contains templates for the CRCnet Configuration System.
+
+Template files to be processed by the system must end in .tmpl.
+
+These templates are only intended as examples.
+
+The templates use the Cheetah template engine from
+http://www.cheetahtemplate.org/
+
+Further syntax documentation will be forthcoming eventually, but it's pretty
+simple. It's basically Python syntax but stick a $ infront of every variable
+name. Python control structures are available (for, while, etc).
+
+Templates to be processed by the configuration system must implement a class
+defined in the configuration daemon that is derived from the ccs_template
+base class. Currently there are two classes that fulfil this criteria.
+
+ccs_host        - Use for templates that relate to an individual host
+ccs_network     - Use for templates that relate to many hosts, or the whole
+                  network
+
+You are welcome to create additional classes and load them as modules to
+implement further types of template if you desire. 

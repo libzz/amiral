@@ -1,0 +1,74 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+This template sets up the FreeRadius configuration on each host
+*#
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "cf.radius"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict with CFengine
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+################################################################
+#
+# cf.radius -- for %domain
+# $Date$
+#
+# This file contains configuration for FreeRadius
+#
+# WARNING: Do not modify this file since it is automatically
+#          generated
+#
+################################################################
+
+###########
+#
+# BEGIN cf.radius
+#
+###########
+
+control:
+
+    any::
+
+        # Classes that may become defined as we proceed
+        AddInstallable = ( restart_freeradius )
+
+packages:
+
+    any::
+
+        # Check that free radius is installed
+        freeradius pkgmgr=dpkg version=1.1.3-1crcnet4 cmp=ge action=install 
+            ifelapsed=120
+
+copy:
+
+    any::
+
+    # Hostapd configuration
+    $(host_config)/radius/ dest=/etc/freeradius/ mode=0640
+        server=$(policyhost) type=sum owner=root group=freerad recurse=2
+        ignore=ccs-revision ignore=.svn define=restart_freeradius backup=false
+
+shellcommands:
+
+    any::
+
+    restart_freeradius::
+        "/etc/init.d/freeradius restart"
+
+###########
+#
+# END cf.radius
+#
+###########

@@ -1,0 +1,189 @@
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "nagios.cfg"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict with Nagios
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+#############################################################
+#
+# nagios.cfg -- for %domain
+# $Date$
+# 
+# WARNING: Do not modify this file since it is automatically
+#          generated.
+# 
+#          Site specific configuration that you wish to keep 
+#          separate from the configuration system can be
+#          placed in the local.cfg file in this directory
+#
+#############################################################
+
+# LOG FILE
+log_file=/var/log/nagios/nagios.log
+
+# OBJECT CONFIGURATION
+cfg_file=/etc/nagios/checkcommands.cfg
+cfg_file=/etc/nagios/misccommands.cfg
+cfg_file=/etc/nagios/contactgroups.cfg
+cfg_file=/etc/nagios/contacts.cfg
+cfg_file=/etc/nagios/dependencies.cfg
+cfg_file=/etc/nagios/escalations.cfg
+cfg_file=/etc/nagios/hosts.cfg
+cfg_file=/etc/nagios/hostgroups.cfg
+cfg_file=/etc/nagios/hostextinfo.cfg
+cfg_file=/etc/nagios/services.cfg
+cfg_file=/etc/nagios/timeperiods.cfg
+cfg_file=/etc/nagios/local.cfg
+
+# OBJECT CACHING
+object_cache_file=/var/log/nagios/objects.cache
+
+# RESOURCE FILE
+resource_file=/etc/nagios/resource.cfg
+
+# STATUS FILE
+status_file=/var/log/nagios/status.log
+
+# NAGIOS USER
+nagios_user=nagios
+nagios_group=nagios
+
+# EXTERNAL COMMAND OPTION
+check_external_commands=1
+command_check_interval=-1
+command_file=/var/log/nagios/rw/nagios.cmd
+
+# COMMENT FILE
+comment_file=/var/log/nagios/comment.log
+
+# DOWNTIME FILE
+downtime_file=/var/log/nagios/downtime.log
+
+# LOCK FILE
+lock_file=/var/log/nagios/nagios.lock
+
+# TEMP FILE
+temp_file=/var/log/nagios/nagios.tmp
+
+# LOG ROTATION METHOD
+log_rotation_method=d
+log_archive_path=/var/log/nagios/archives
+
+# LOGGING OPTIONS
+use_syslog=0
+log_notifications=1
+log_service_retries=1
+log_host_retries=1
+log_event_handlers=1
+log_initial_states=0
+log_external_commands=1
+log_passive_checks=1
+
+# SERVICE CHECK PARAMETERS
+service_inter_check_delay_method=d
+service_interleave_factor=s
+max_service_check_spread=15
+service_reaper_frequency=5
+max_concurrent_checks=0
+sleep_time=1
+
+# HOST CHECK PARAMETERS
+host_inter_check_delay_method=s
+max_host_check_spread=15
+
+# TIMEOUT VALUES
+service_check_timeout=30
+host_check_timeout=15
+event_handler_timeout=30
+notification_timeout=30
+ocsp_timeout=5
+perfdata_timeout=5
+
+# RETAIN STATE INFORMATION
+retain_state_information=1
+state_retention_file=/var/log/nagios/status.sav
+retention_update_interval=60
+use_retained_program_state=0
+use_retained_scheduling_info=0
+
+# INTERVAL LENGTH
+interval_length=60
+auto_reschedule_checks=1
+
+# AGRESSIVE HOST CHECKING OPTION
+use_agressive_host_checking=0
+
+# SERVICE CHECK EXECUTION OPTION
+execute_service_checks=1
+accept_passive_service_checks=1
+
+# HOST CHECK EXECUTION OPTION
+execute_host_checks=1
+accept_passive_host_checks=1
+
+# NOTIFICATIONS OPTION
+enable_notifications=1
+
+# EVENT HANDLER USE OPTION
+enable_event_handlers=1
+
+# PROCESS PERFORMANCE DATA OPTION
+process_performance_data=0
+
+# HOST AND SERVICE PERFORMANCE DATA PROCESSING COMMANDS
+#host_perfdata_command=process-host-perfdata
+#service_perfdata_command=process-service-perfdata
+
+# OBSESS OVER SERVICE CHECKS OPTION
+obsess_over_services=0
+
+# OBSESSIVE COMPULSIVE SERVICE PROCESSOR COMMAND
+#ocsp_command=somecommand
+
+# ORPHANED SERVICE CHECK OPTION
+check_for_orphaned_services=0
+
+# SERVICE FRESHNESS CHECK OPTION
+check_service_freshness=1
+service_freshness_check_interval=60
+
+# AGGREGATED STATUS UPDATES
+aggregate_status_updates=1
+
+# AGGREGATED STATUS UPDATE INTERVAL
+status_update_interval=15
+
+# FLAP DETECTION OPTION
+enable_flap_detection=1
+
+# FLAP DETECTION THRESHOLDS FOR HOSTS AND SERVICES
+low_service_flap_threshold=5.0
+high_service_flap_threshold=20.0
+low_host_flap_threshold=5.0
+high_host_flap_threshold=20.0
+
+# DATE FORMAT OPTION
+date_format=euro
+
+# ILLEGAL OBJECT NAME CHARACTERS
+illegal_object_name_chars=`~!$%^&*|'"<>?,()=
+
+# ILLEGAL MACRO OUTPUT CHARACTERS
+illegal_macro_output_chars=`~$&|'"<>
+
+use_regexp_matching=1
+
+# ADMINISTRATOR EMAIL ADDRESS
+admin_email=%admin_email
+
+# ADMINISTRATOR PAGER NUMBER / ADDRESS
+admin_pager=%admin_email

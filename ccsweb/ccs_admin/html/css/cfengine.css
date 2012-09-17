@@ -1,0 +1,65 @@
+#cfrunlogs td {
+    background-color: #cccccc;
+    padding: 5px;
+}
+#cfrunlogs th {
+    background-color: #dddddd;
+    padding: 1px;
+    padding-left: 3px;
+    border-right: 2px solid white;
+}
+#cfrunlogs th.title {
+    background: #888888;
+    padding: 3px;
+}
+#cfrunlogs th .normal {
+    font-weight: normal;
+}
+#cfrunlogs div {
+    font-family: fixed;
+}  
+.loghidden {
+    display: none;
+}
+#pushconfigs {
+    margin-top: 5px;
+}
+#pushconfigs {
+    float: right;
+    padding-bottom: 5px;
+    width: 300px;
+    text-align: center;
+    background-color: #cccccc;
+    border: 1px solid #888888;
+}
+#pushconfigs .header {
+    background-color: #888888;
+    font-weight: bold;
+    border: 0px;
+}
+#pushconfigs TABLE TD {
+    text-align: left;
+    padding: 2px;
+}
+#status {
+    color: #cccccc;
+}
+#countdown {
+    font-weight: bold;
+}
+#cfspacer {
+    clear: both;
+}
+.statusok A {
+    color: green;
+}
+.statuswarning A {
+    color: #FF6600;
+}
+.statuscritical A {
+    color: red;
+}
+.statusunknown {
+    font-weight: normal;
+    font-style: italic;
+}

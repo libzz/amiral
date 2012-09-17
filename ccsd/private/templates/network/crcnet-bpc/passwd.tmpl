@@ -1,0 +1,16 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+Default user password file for CRCnet Biscuit PCs
+*#
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#raw
+root:$1$vO4KGFI9$9IKT5NcQXO544HAr/u4Jw1:0:0:root:/root:/bin/bash
+nobody:*:65534:65534:nobody:/nonexistent:/bin/sh
+#end raw

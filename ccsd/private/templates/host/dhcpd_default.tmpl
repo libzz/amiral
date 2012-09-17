@@ -1,0 +1,41 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+This template creates the DHCP Defaults File
+*#
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "dhcpd_default"
+#attr $serviceName = "dhcp"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict with DHCP syntax
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+#
+# CRCnet BiscuitPC DHCP Defaults File - Specify interfaces to listen on
+#
+# This file was automatically generated on the date below, DO NOT EDIT
+# $Date$
+
+#
+# This is a POSIX shell fragment
+#
+
+# On what interfaces should the DHCP server (dhcpd) serve DHCP requests?
+#       Separate multiple interfaces with spaces, e.g. "eth0 eth1".
+INTERFACES="!slurp
+!for %name,%iface in %interfaces.items()
+!if %iface.interface_active and %service.dhcp.interfaces[%name].dhcp_enabled
+%name !slurp
+!end if
+!end for
+"
+

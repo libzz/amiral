@@ -1,0 +1,39 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+This template creates the zebra daemon configuration
+*#
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "zebra.conf"
+#attr $serviceName = "quagga"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+!
+! CRCnet BiscuitPC Quagga Configuration
+!
+! This file was automatically generated on the date below, DO NOT EDIT
+! \$Date$
+hostname $host_name
+#if $service.quagga.telnet_password != ""
+password $service.quagga.telnet_password
+#end if
+#if $service.quagga.enable_password
+enable password $service.quagga.enable_password
+#end if
+
+!
+! Static routes
+!
+#for $prefix,$route in $service.quagga.statics.items()
+! $route.description
+ip route $route.prefix $route.next_hop #slurp
+#if $route.metric != ""
+$route.metric
+#else
+
+#end if
+#end for

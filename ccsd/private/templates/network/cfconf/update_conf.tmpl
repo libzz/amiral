@@ -1,0 +1,142 @@
+#*doc-module:
+crcnetd - CRCnet Configuration System Daemon Template
+
+This template controls the CFengine configuration distributino
+*#
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "update.conf"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict with CFengine
+cheetahVarStartToken = %
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+#######################################################
+#
+# cf.update - for %domain
+# $Date$
+#
+# WARNING: Do not modify this file since it is automatically
+#          generated
+#
+#######################################################
+
+########
+#
+# BEGIN cf.update
+#
+########
+
+#######################################################################
+#
+# This script distributes the configuration, a simple file so that,
+# if there are syntax errors in the main config, we can still
+# distribute a correct configuration to the machines afterwards, even
+# though the main config won't parse. It is read and run just before the
+# main configuration is parsed.
+#
+#######################################################################
+control:
+
+    any::
+
+        actionsequence  = ( copy processes tidy )
+
+        domain          = ( %domain )
+
+        # Where to get configs from
+        policyhost      = ( %server_name )
+
+        # CFengine base directory
+        workdir         = ( /var/lib/cfengine2 )
+
+        # Location of configuration files
+        # We use same filesystem structure on policy server / hosts
+        master_cfinput  = ( /var/lib/cfengine2/inputs )
+
+        # Location of host cfengine configuration
+        host_cfinput    = ( $(master_cfinput)/cfconf )
+        host_specific_cfinput = ( $(master_cfinput)/hosts/$(host) )
+
+        AddInstallable  = ( new_cfenvd new_cfservd )
+
+groups:
+
+    any::
+        
+        CPE             = ( FileExists(/etc/cpe_version) )
+  
+import:
+    
+    any::
+
+    # Try and import the host specific variables
+    !CPE::
+        cf.hostvars
+
+############################################################################
+#
+# Copy the configuratin locally
+copy:
+
+    any::
+
+        # Basic CFengine network wide configuration files
+        $(host_cfinput)         dest=$(workdir)/inputs
+                                r=inf
+                                mode=600
+                                owner=root
+                                group=root
+                                exclude=*~
+                                exclude=*.swp
+                                exclude=cfservd.conf
+                                ignore=.svn
+                                server=$(policyhost)
+                                backup=false
+                                type=sum
+
+    # Host specific configuration variables for anything not a CPE
+    !CPE::
+        # Copy any files named cf.* from the host specific directory
+        $(host_specific_cfinput) dest=$(workdir)/inputs
+                                r=1
+                                include=cf.*
+                                mode=600
+                                owner=root
+                                group=root
+                                server=$(policyhost)
+                                backup=false
+                                type=sum
+
+    # For every server that is not the policy server copy cfservd.conf
+    !%policy_ip_class::
+        $(host_cfinput)/cfservd.conf dest=$(workdir)/inputs/cfservd.conf
+                                r=0
+                                mode=600
+                                owner=root
+                                group=root
+                                exclude=*~
+                                exclude=*.swp
+                                ignore=.svn
+                                server=$(policyhost)
+                                backup=false
+                                type=sum
+    
+#####################################################################
+processes:
+
+    new_cfservd::
+        "cfservd" signal=term restart "/etc/init.d/cfengine2 start"
+
+###
+#
+# END cf.update
+#
+###

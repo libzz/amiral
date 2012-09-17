@@ -1,0 +1,29 @@
+-- 
+-- PostgreSQL schema for AMPlet Service
+--
+-- Author:   Matt Brown  <matt@crc.net.nz>
+-- Version:  $Id$
+--
+
+--DROP TRIGGER amplet_groups_history_t ON amplet_groups;
+--DROP TABLE amplet_groups_history CASCADE;
+--DROP TABLE amplet_groups CASCADE;
+
+-- One entry in this table for each "testset" on the network
+-- Hosts can only belong to one testset at a time, this is stored in a host 
+-- property
+CREATE TABLE amplet_groups (
+ amplet_group_id        SERIAL      PRIMARY KEY,
+ group_name             varchar(32) NOT NULL,
+ group_description      varchar(255) NOT NULL
+);
+CREATE TABLE amplet_groups_history (
+ amplet_group_id        integer,
+ group_name             varchar(32),
+ group_description      varchar(255),
+ changeset              integer     NOT NULL REFERENCES
+    changeset (changeset_id),
+ PRIMARY KEY(amplet_group_id, changeset)
+);
+CREATE TRIGGER amplet_groups_history_t BEFORE INSERT OR UPDATE OR DELETE ON
+    amplet_groups FOR EACH ROW EXECUTE PROCEDURE do_table_history(); 

@@ -1,0 +1,186 @@
+#attr $author = "Matt Brown <matt@crc.net.nz>"
+#attr $version = "$Id$"
+#attr $copyright = "Copyright (C) 2006  The University of Waikato"
+#attr $license = "No usage or redistribution rights are granted. See LICENSE for details."
+#attr $eventList = []
+#attr $fileName = "postgresql.conf"
+#attr $serviceName = "radius"
+#from crcnetd._utils.ccsd_cfengine import ccs_template
+#extends ccs_template
+#compiler-settings
+## Change the Cheetah start tokens so that we don't conflict
+cheetahVarStartToken = ~
+directiveStartToken = !
+commentStartToken = !!
+EOLSlurpToken = ^^^
+#end compiler-settings
+!set ~radius = ~services["radius"]
+#############################################################
+#
+# postgresql.conf -- Free RADIUS configuration for ~domain
+# $Date$
+# 
+# WARNING: Do not modify this file since it is automatically
+#          generated.
+#
+#############################################################
+sql {
+    driver = "rlm_sql_postgresql"
+
+    # Connect info
+    server = "~dbhost"
+    login = "~dbuser"
+    password = "~dbpass"
+
+    # Database table configuration
+    radius_db = "~dbname"
+    
+    # If you want both stop and start records logged to the
+    # same SQL table, leave this as is.  If you want them in
+    # different tables, put the start table in acct_table1
+    # and stop table in acct_table2
+    acct_table1 = "radius_session"
+    acct_table2 = "radius_session"
+
+    # Allow for storing data after authentication
+    postauth_table = "radpostauth"
+    
+    authcheck_table = "radius_check
+    authreply_table = "radius_reply"
+    
+    groupcheck_table = "radius_groupcheck"
+    groupreply_table = "radius_groupreply"
+    
+    usergroup_table = "radius_groups"
+    
+    # Remove stale session if checkrad does not see a double login
+    deletestalesessions = yes
+    
+    # Print all SQL statements when in debug mode (-x)
+    sqltrace = no
+    sqltracefile = ${logdir}/sqltrace.sql
+    
+    # number of sql connections to make to server
+    num_sql_socks = 5
+
+    # number of seconds to dely retrying on a failed database
+    # connection (per_socket)
+    #connect_failure_retry_delay = 60
+    
+    read_groups = yes
+    
+    #######################################################################
+    #  Query config:  Username
+    #######################################################################
+    # This is the username that will get substituted, escaped, and added 
+    # as attribute 'SQL-User-Name'.  '%{SQL-User-Name}' should be used below
+    sql_user_name = "%{User-Name}"
+
+    #######################################################################
+    #  Authorization Queries
+    #######################################################################
+
+    authorize_check_query = "SELECT id, UserName, Attribute, Value, Op \
+        FROM ${authcheck_table} \
+        WHERE Username = '%{SQL-User-Name}' \
+
+    authorize_reply_query = "SELECT id, UserName, Attribute, Value, Op \
+        FROM ${authreply_table} \
+        WHERE Username = '%{SQL-User-Name}' \
+        ORDER BY id"
+    
+    authorize_group_check_query = "SELECT ${groupcheck_table}.id, \
+            ${groupcheck_table}.GroupName, ${groupcheck_table}.Attribute, \
+            ${groupcheck_table}.Value,${groupcheck_table}.Op \
+        FROM ${groupcheck_table}, ${usergroup_table} \
+        WHERE ${usergroup_table}.Username = '%{SQL-User-Name}' \
+            AND ${usergroup_table}.GroupName = ${groupcheck_table}.GroupName \
+        ORDER BY ${groupcheck_table}.id"
+
+    authorize_group_reply_query = "SELECT ${groupreply_table}.id, \
+            ${groupreply_table}.GroupName, ${groupreply_table}.Attribute, \
+            ${groupreply_table}.Value, ${groupreply_table}.Op \
+        FROM ${groupreply_table},${usergroup_table} \
+        WHERE ${usergroup_table}.Username = '%{SQL-User-Name}' \
+            AND ${usergroup_table}.GroupName = ${groupreply_table}.GroupName \
+        ORDER BY ${groupreply_table}.id"
+        
+    #######################################################################
+    #  Authentication Query
+    #######################################################################
+    
+    authenticate_query = "SELECT Value,Attribute FROM ${authcheck_table} \
+        WHERE UserName = '%{User-Name}' AND ( Attribute = 'User-Password' \
+            OR Attribute = 'Crypt-Password' ) \
+        ORDER BY Attribute DESC"
+
+    #######################################################################
+    #  Accounting Queries
+    #######################################################################
+    accounting_onoff_query = "UPDATE ${acct_table1} \
+        SET AcctStopTime = (now() - '%{Acct-Delay-Time:-0}'::interval), \
+            AcctSessionTime = (EXTRACT(EPOCH FROM(now()::timestamp with \
+            time zone - AcctStartTime::timestamp with time zone - \
+            '%{Acct-Delay-Time:-0}'::interval)))::BIGINT, \
+            AcctTerminateCause='%{Acct-Terminate-Cause}', \
+            AcctStopDelay = '%{Acct-Delay-Time:-0}' \
+        WHERE AcctSessionTime IS NULL AND AcctStopTime IS NULL AND \
+            NASIPAddress= '%{NAS-IP-Address}' AND \
+            CalledStationId='%{Called-Station-Id}' AND AcctStartTime <= now()"
+
+    accounting_update_query = "SELECT update_radius_session( \
+        '%{Acct-Session-Id}', '%{SQL-User-Name}', '%{NAS-IP-Address}', \
+        (('%{Acct-Input-Gigawords:-0}'::bigint << 32) + \
+        '%{Acct-Input-Octets:-0}'::bigint), \
+        (('%{Acct-Output-Gigawords:-0}'::bigint << 32) + \
+        '%{Acct-Output-Octets:-0}'::bigint), 'update')"
+    accounting_update_query_alt = "SELECT update_radius_session( \
+        '%{Acct-Session-Id}', '%{SQL-User-Name}', '%{NAS-IP-Address}', \
+        (('%{Acct-Input-Gigawords:-0}'::bigint << 32) + \
+        '%{Acct-Input-Octets:-0}'::bigint), \
+        (('%{Acct-Output-Gigawords:-0}'::bigint << 32) + \
+        '%{Acct-Output-Octets:-0}'::bigint), 'update')"
+
+    accounting_start_query = "SELECT start_radius_session( \
+        '%{Acct-Session-Id}', '%{Acct-Unique-Session-Id}', \
+        '%{SQL-User-Name}', '%{Realm}', '%{NAS-IP-Address}', \
+        '%{NAS-Port}', '%{NAS-Port-Type}', '%{Acct-Authentic}', \
+        '%{Connect-Info}', '%{Called-Station-Id}', '%{Calling-Station-Id}', \
+        '%{Service-Type}', '%{Framed-Protocol}', \
+        NULLIF('%{Framed-IP-Address}', '')::inet, '%{Acct-Delay-Time:-0}')"
+    accounting_start_query_alt = "SELECT start_radius_session( \
+        '%{Acct-Session-Id}', '%{Acct-Unique-Session-Id}', \
+        '%{SQL-User-Name}', '%{Realm}', '%{NAS-IP-Address}', \
+        '%{NAS-Port}', '%{NAS-Port-Type}', '%{Acct-Authentic}', \
+        '%{Connect-Info}', '%{Called-Station-Id}', '%{Calling-Station-Id}', \
+        '%{Service-Type}', '%{Framed-Protocol}', \
+        NULLIF('%{Framed-IP-Address}', '')::inet, '%{Acct-Delay-Time:-0}')"
+
+    accounting_stop_query = "SELECT stop_radius_session( \
+        '%{Acct-Session-Id}', '%{SQL-User-Name}', '%{NAS-IP-Address}', \
+        (('%{Acct-Input-Gigawords:-0}'::bigint << 32) + \
+        '%{Acct-Input-Octets:-0}'::bigint), \
+        (('%{Acct-Output-Gigawords:-0}'::bigint << 32) + \
+        '%{Acct-Output-Octets:-0}'::bigint), '%{Acct-Terminate-Cause}', \
+        '%{Acct-Delay-Time:-0}', '%{Connect-Info}')"
+    accounting_stop_query_alt = "SELECT stop_radius_session( \
+        '%{Acct-Session-Id}', '%{SQL-User-Name}', '%{NAS-IP-Address}', \
+        (('%{Acct-Input-Gigawords:-0}'::bigint << 32) + \
+        '%{Acct-Input-Octets:-0}'::bigint), \
+        (('%{Acct-Output-Gigawords:-0}'::bigint << 32) + \
+        '%{Acct-Output-Octets:-0}'::bigint), '%{Acct-Terminate-Cause}', \
+        '%{Acct-Delay-Time:-0}', '%{Connect-Info}')"
+
+    ######################################################################
+    # Group Membership Queries
+    #######################################################################
+    group_membership_query = "SELECT GroupName FROM ${usergroup_table} WHERE \
+        UserName='%{SQL-User-Name}'"
+
+    #######################################################################
+    # Authentication Logging Queries
+    #######################################################################
+    postauth_query = "INSERT into ${postauth_table} (username, pass, reply, \
+        authdate) values ('%{User-Name}', '%{User-Password:-Chap-Password}', \
+        '%{reply:Packet-Type}', NOW())"
+}
