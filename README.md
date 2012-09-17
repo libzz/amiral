@@ -5,7 +5,7 @@ Libzz Amiral Project - Amiral provides comprehensive and easy-to-use configurati
 management and enforcement using CFEngine3 for *nix, Windows and Mac systems.
 
 Amiral simplify the Regular maintenance procedures, standardization of desktop and server 
-configurations and policy implementations. It reduce the time-consuming.
+configurations and policy implementations. It aims to reduce the time-consuming.
 
 Amiral is a project to build a semi automated, flexible, full featured configuration system. 
 The ultimate aim of the configuration system, is to reduce the administrative overhead to a 
